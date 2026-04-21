@@ -12,7 +12,7 @@ export OUT_DIR=$CODE_DIR/output-dir
 sudo docker run -it --gpus '"device=0"' --device /dev/input --entrypoint /bin/bash -e DISPLAY=:1 -e SDL_VIDEODRIVER=x11 -v /tmp/.X11-unix:/tmp/.X11-unix:rw -e WANDB_API_KEY=$WANDB_API_KEY -v $CODE_DIR:/code -v $DATA_DIR:/data -v $OUT_DIR:/outdir --workdir /code ripl/diffusion-for-shared-autonomy
 cd Documents/diffusion-for-shared-autonomy # this is needed because entrypoint is just at /bin/bash
 ```
-- running joystick
+## Running joystick (pilot) with trained model (copilot)
 ```bash
 python -m diffusha.actor.joystick
 ```
