@@ -102,6 +102,7 @@ class DiffusionModel:
         self.cond_dim = cond_dim
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("device, ", device)
         # betas = make_beta_schedule(schedule='sigmoid', n_timesteps=num_diffusion_steps, start=1e-5, end=1e-2)
         betas = make_beta_schedule(
             schedule=beta_schedule,
@@ -110,6 +111,7 @@ class DiffusionModel:
             end=beta_max,
         )
         self.betas = betas.to(device)
+        print("self.betas, ", self.betas)
         self.alphas = 1 - self.betas
         self.alphas_prod = torch.cumprod(self.alphas, 0).to(device)
         self.alphas_prod_p = torch.cat(
@@ -361,7 +363,10 @@ class Trainer:
                         }
                         return initial_expert_agent(make_eval_env, lvl2modeldir[lvl])
                     elif "Push" in envname:
-                        modeldir = Path(Args.sac_model_dir) / Args.pushenv_model_dir
+                        ROOT = Path(__file__).resolve().parents[2] 
+                        # modeldir = Path(Args.sac_model_dir) / Args.blockpush_data_dir
+
+                        modeldir = ROOT / "hosted_data" / "experts" / "blockpush"
                         return initial_expert_agent(make_eval_env, modeldir)
                     else:
                         raise ValueError(f"Unknown env name: {envname}\t{sample_env}")
@@ -411,6 +416,8 @@ class Trainer:
                         make_eval_env,
                         expert_agent,
                         fwd_diff_ratio=Args.fwd_diff_ratio,
+                        laggy_actor_repeat_prob = 0.6,
+                        noisy_actor_eps = 0.6,
                         num_episodes=20,
                         histogram=True,
                         actor_list=["expert", "noisy"],

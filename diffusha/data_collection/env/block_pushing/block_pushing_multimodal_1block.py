@@ -121,9 +121,16 @@ class BlockPushMultimodal(block_pushing.BlockPush):
 
     def _setup_pybullet_scene(self):
         self._pybullet_client = bullet_client.BulletClient(self._connection_mode)
+        print("connection mode, ", self._connection_mode)
 
         # Temporarily disable rendering to speed up loading URDFs.
         pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 0)
+        self._pybullet_client.resetDebugVisualizerCamera(
+            cameraDistance=1.8,
+            cameraYaw=45,
+            cameraPitch=-30,
+            cameraTargetPosition=[0.4, 0, 0]
+        )
 
         self._setup_workspace_and_robot()
 

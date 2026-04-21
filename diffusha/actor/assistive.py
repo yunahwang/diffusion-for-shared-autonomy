@@ -41,6 +41,9 @@ class DiffusionAssistedActor(Actor):
         else:
             obs_size = obs.shape[1]
 
+        #print("obs_size, ", obs_size)
+        #print("user_act, ",user_act)
+
         # import pdb; pdb.set_trace()
 
         # Concat obs and user action
@@ -51,6 +54,8 @@ class DiffusionAssistedActor(Actor):
             # This if else condition is specific for play.py I am not sure whether this would cause a problem for eval
             state = torch.as_tensor(np.concatenate((obs, user_act), axis=0))
 
+        print("state before diffuse:", state.detach().cpu().numpy(), flush=True)
+
         # NOTE: Currently only support hard conditioning (replacing a part of the input / output)
 
         # Forward diffuse user_act for k steps
@@ -59,19 +64,27 @@ class DiffusionAssistedActor(Actor):
         else:
             x_k, e = self.diffusion.diffuse(state, torch.as_tensor([self._k]))
 
+        print("x_k after diffuse:", x_k.detach().cpu().numpy(), flush=True)
+        
         # Reverse diffuse Tensor([*crisp_obs, *noisy_user_act]) for (diffusion.num_diffusion_steps - k) steps
         obs = torch.as_tensor(obs, dtype=torch.float32)
         x_k[:, :obs_size] = obs  # Add condition
         x_i = x_k
         for i in reversed(range(self._k)):
+            #print("i, ", i)
             x_i = self.diffusion.p_sample(x_i, i)
             x_i[:, :obs_size] = obs  # Add condition
 
+            if i in [self._k - 1, max(self._k // 2, 0), 0]:
+                print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
+
         if not run_in_batch:
             out = x_i.squeeze()  # Remove batch dim
+            print("out, ", out)
             return out[obs_size:].cpu().numpy()
         else:
             out = x_i
+            print("out, ", out)
             return out[..., obs_size:].cpu().numpy()
 
 
@@ -92,6 +105,7 @@ class DiffusionAssistedActor(Actor):
             action = self._diffusion_cond_sample(obs_copilot, user_act)
         else:
             action = user_act
+        print("action from cond, ", action)
 
         if return_original:
             return action, user_act
@@ -143,14 +157,18 @@ class DiffusionAssistedActor(Actor):
 
     def act_without_env(self, obs: np.ndarray, act: np.ndarray, report_diff: bool = False):
         if isinstance(obs, dict):
+            #print("dict")
             obs_pilot = obs['pilot']
             obs_copilot = obs['copilot']
         else:
+            #print("not dict")
+            #print("obs, ", obs)
             obs_pilot = obs_copilot = obs
         # Get user input
         user_act = act
 
         if self.fwd_diff_ratio != 0:
+            #print("here when diff_ratio is not 0")
             action = self._diffusion_cond_sample(obs_copilot, user_act)
         else:
             action = user_act

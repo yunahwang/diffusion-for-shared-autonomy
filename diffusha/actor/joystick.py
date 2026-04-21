@@ -4,48 +4,80 @@
 import time
 import pygame
 import numpy as np
+import json
+from pathlib import Path
+
+import warnings
+warnings.filterwarnings("ignore")
+
 from diffusha.actor import Actor
+from diffusha.actor.assistive import DiffusionAssistedActor
+from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
 #####################################
 # Change these to match your joystick
 UP_AXIS = 3  # AKA ；up(negative) and down(positive)
 SIDE_AXIS = 2  # AKA ；left and right
 #####################################
+np.set_printoptions(precision=12, suppress=False)
 
-
-class LunarLanderJoystickActor(Actor):
-    """Joystick Controller for Lunar Lander."""
+class JoystickActor(Actor):
+    """Joystick Controller for Block Pushing."""
+    """Joystick Controller for Lunar Lander.""" # was
 
     def __init__(self, env, fps=50):
         """Init."""
         self.env = env
         self.human_agent_action = np.array([0., 0.], dtype=np.float32)
+        pygame.init()
         pygame.joystick.init()
         joysticks = [pygame.joystick.Joystick(x)
                      for x in range(pygame.joystick.get_count())]
-        # print(joysticks)
+        #print(joysticks)
         # if len(joysticks) != 1:
         #     raise ValueError("There must be exactly 1 joystick connected."
         #                      f"Found {len(joysticks)}")
         self.joy = joysticks[-1]  # TEMP
         self.joy.init()
-        pygame.init()
+        #pygame.init()
         self.t = None
         self.fps = fps
-
+    
     def _get_human_action(self):
         events = pygame.event.get()
+
+        DEADZONE = 0.1
+
         for event in events:
             if event.type == pygame.JOYAXISMOTION:
+                v = 0.0 if abs(event.value) < DEADZONE else event.value
+
                 if event.axis == UP_AXIS:
-                    # for up and down, right handel
-                    self.human_agent_action[0] = -1 * event.value
+                    print("up/down")
+                    self.human_agent_action[0] = -1 * v
+
                 elif event.axis == SIDE_AXIS:
-                    # for left and right
-                    self.human_agent_action[1] = event.value
-        if abs(self.human_agent_action[1]) < 0.1:
-            self.human_agent_action[0] = 0.0
+                    print("left/right")
+                    self.human_agent_action[1] = v
+
         return self.human_agent_action
+
+    # def _get_human_action(self):
+    #     events = pygame.event.get()
+    #     for event in events:
+    #         if event.type == pygame.JOYAXISMOTION:
+    #             if event.axis == UP_AXIS:
+    #                 print("up/down")
+    #                 # for up and down, right handel
+    #                 self.human_agent_action[0] = -0.02 * event.value
+    #             elif event.axis == SIDE_AXIS:
+    #                 print("left/right")
+    #                 # for left and right
+    #                 self.human_agent_action[1] = 0.02 * event.value
+    #     if abs(self.human_agent_action[1]) < 0.1:
+    #         #print("is it this?")
+    #         self.human_agent_action[0] = 0.0
+    #     return self.human_agent_action
 
     def act(self, ob):
         """Act."""
@@ -56,26 +88,205 @@ class LunarLanderJoystickActor(Actor):
     def reset(self):
         self.human_agent_action[:] = 0.
 
+def get_effector_xy_from_obs(ob):
+    """
+    Works for BlockPush-style obs dicts.
+    Returns 2D end-effector position.
+    """
+    if isinstance(ob, dict):
+        if "effector_translation" in ob:
+            xy = np.asarray(ob["effector_translation"], dtype=np.float32)
+            return xy[:2]
+        elif "pilot" in ob and isinstance(ob["pilot"], dict):
+            xy = np.asarray(ob["pilot"]["effector_translation"], dtype=np.float32)
+            return xy[:2]
+
+    # fallback if obs is already flat and you know indices later
+    raise ValueError("Could not find effector_translation in observation.")
+
+
+def draw_action_arrows(pb_client, ob, raw_action, assisted_action,
+                       raw_line_id=None, assisted_line_id=None,
+                       z=0.08, scale=0.25):
+    """
+    Draws:
+      green arrow = raw joystick action
+      red arrow   = assisted action
+
+    Returns updated line ids so they can be replaced next frame.
+    """
+    ee_xy = get_effector_xy_from_obs(ob)
+
+    start = [float(ee_xy[0]), float(ee_xy[1]), float(z)]
+
+    raw_end = [
+        float(ee_xy[0] + scale * raw_action[0]),
+        float(ee_xy[1] + scale * raw_action[1]),
+        float(z),
+    ]
+    assisted_end = [
+        float(ee_xy[0] + scale * assisted_action[0]),
+        float(ee_xy[1] + scale * assisted_action[1]),
+        float(z),
+    ]
+
+    raw_line_id = pb_client.addUserDebugLine(
+        start,
+        raw_end,
+        lineColorRGB=[0, 1, 0],   # green
+        lineWidth=3,
+        lifeTime=0.08,
+        replaceItemUniqueId=(-1 if raw_line_id is None else raw_line_id),
+    )
+
+    assisted_line_id = pb_client.addUserDebugLine(
+        start,
+        assisted_end,
+        lineColorRGB=[1, 0, 0],   # red
+        lineWidth=3,
+        lifeTime=0.08,
+        replaceItemUniqueId=(-1 if assisted_line_id is None else assisted_line_id),
+    )
+
+    return raw_line_id, assisted_line_id
+
+
+def draw_status_text(pb_client, text, text_id=None, pos=(0.18, -0.48, 0.22)):
+    text_id = pb_client.addUserDebugText(
+        text=text,
+        textPosition=list(pos),
+        textColorRGB=[1, 1, 1],
+        textSize=1.2,
+        lifeTime=0.08,
+        replaceItemUniqueId=(-1 if text_id is None else text_id),
+    )
+    return text_id
 
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
+    # TODO - change the following things
+    no_assist = True # if False, use DiffusionAssistedActor
+    model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
+    draw_arrows = False
+    fwd_diff_ratio = 0.4
+
+    env_name =  "BlockPushMultimodal-v1"
+
     env = make_env(
-        "LunarLander-v3",
+        #"LunarLander-v3",
+        env_name,
         seed=1,
         test=False
     )
 
-    actor = LunarLanderJoystickActor(env)
+    actor = JoystickActor(env)
 
-    for _ in range(10):
-        ob = env.reset()
-        env.render()
-        done = False
-        reward = 0.0
-
-        while not done:
+    if no_assist:
+        for _ in range(10000):
+            ob = env.reset()
             env.render()
-            ob, r, done, _ = env.step(actor.act(ob))
-            reward += r
-        print(reward)
+            done = False
+            reward = 0.0
+
+            while not done:
+                env.render()
+                ob, r, done, _ = env.step(actor.act(ob))
+                reward += r
+            print(reward)
+
+    else:
+        obs_space = env.observation_space
+        act_space = env.action_space
+        print("obs_space, ", obs_space)
+        print("act_space, ", act_space)
+
+        with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
+            env2config = json.load(f)
+
+        model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
+        
+        laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
+
+        diffusion = prepare_diffusha(
+            env, 
+            env2config[env_name], 
+            model_dir,
+            29999,
+            env_name,
+            fwd_diff_ratio,
+            laggy_actor_repeat_prob,
+            noisy_actor_eps
+        )
+
+        print(diffusion, flush=True)
+
+        # load assisted actor
+        assisted_actor = DiffusionAssistedActor(
+            obs_space = obs_space,
+            act_space = act_space,
+            diffusion = diffusion,
+            behavioral_actor = None,
+            fwd_diff_ratio = fwd_diff_ratio
+        )   
+
+        print(assisted_actor)
+
+        raw_line_id = None
+        assisted_line_id = None
+        text_id = None
+
+        # load human demonstrator
+        for ep in range(10000):
+            ob = env.reset()
+            test_action = np.array([0.5, -0.5], dtype=np.float32)
+            print("manual test input:", test_action, flush=True)
+
+            test_out, test_diff = assisted_actor.act_without_env(
+                ob, test_action, report_diff=True
+            )
+            print("manual test output:", test_out, "diff:", test_diff, flush=True)
+            env.render()
+            
+            # done = False
+            # reward = 0.0
+            # step_i = 0
+
+            # while not done:
+            #     env.render()
+                
+            #     raw_action = actor.act(ob)
+            #     assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff = True)
+
+            #     #print("raw action, ", raw_action, " assisted_action, ", assisted_action, "diff, ", diff)
+
+            #     print("raw action, ", raw_action, flush = True)
+            #     print("assisted_action, ", assisted_action, flush = True)
+            #     print("diff, ", diff, flush = True)
+
+            #     if draw_arrows:
+            #         pb = env.unwrapped.pybullet_client
+
+            #         raw_line_id, assisted_line_id = draw_action_arrows(
+            #             pb,
+            #             ob,
+            #             raw_action,
+            #             assisted_action,
+            #             raw_line_id=raw_line_id,
+            #             assisted_line_id=assisted_line_id,
+            #             z=0.08,
+            #             scale=0.25,
+            #         )
+            #         text_id = draw_status_text(
+            #             pb,
+            #             text=(
+            #                 f"raw={np.round(raw_action, 3)}   "
+            #                 f"assist={np.round(assisted_action, 3)}   "
+            #                 f"diff={diff:.3f}   "
+            #                 f"reward={r:.3f}"
+            #             ),
+            #             text_id=text_id,
+            #         )
+            #     ob, r, done, _= env.step(assisted_action)
+            #     reward += r
+            # print("episode reward: ", reward)

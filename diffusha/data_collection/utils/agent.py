@@ -81,7 +81,7 @@ def get_agent(sample_env, policy_output_scale, batch_size, replay_start_size):
         rbuf,
         gamma=0.99,
         replay_start_size=replay_start_size,
-        gpu=0,
+        gpu=-1,
         minibatch_size=batch_size,
         burnin_action_func=burnin_action_func,
         entropy_target=-action_size,

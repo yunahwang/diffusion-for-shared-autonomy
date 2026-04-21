@@ -4,7 +4,7 @@ import os
 proj_root = os.environ.get('RMX_CODE_DIR', '')
 
 class Args(ParamsProto):
-    env_name = 'LunarLander-v1'
+    env_name = 'BlockPushMultimodal-v1'
     dataset_envs = None
 
     # DDPM configuration
@@ -31,7 +31,7 @@ class Args(ParamsProto):
     seed = 0
 
     # Used in evaluation
-    fwd_diff_ratio = 0.4
+    fwd_diff_ratio = 0.8 # trying 0.1, 0.4 (default), and 0.8
     laggy_actor_repeat_prob = 0.8
     noisy_actor_eps = 0.8
 

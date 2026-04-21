@@ -10,6 +10,7 @@ from diffusha.config.default_args import Args
 
 
 def prepare_diffusha(
+    env,
     config,
     model_dir,
     step,
@@ -20,6 +21,8 @@ def prepare_diffusha(
 ):
     """Load hyperparmeters from wandb, and load a pytorch model from birch/elm, and return an instantiated diffusion model."""
     from diffusha.diffusion.ddpm import DiffusionModel, DiffusionCore
+
+    print("entered prepare_diffusha")
 
     Args._update(config)
 
@@ -35,7 +38,10 @@ def prepare_diffusha(
         obs_size = copilot_obs_space.low.size
         act_size = act_space.low.size
     else:
-        sample_env = make_env(env_name, seed=0, test=True)
+        print("making env")
+        #sample_env = make_env(env_name, seed=0, test=True)
+        sample_env = env
+        print("sample_env, ", sample_env)
         obs_space = sample_env.observation_space
         act_space = sample_env.action_space
         obs_size = obs_space.low.size
@@ -51,6 +57,7 @@ def prepare_diffusha(
         beta_max=Args.beta_max,
         cond_dim=obs_size,
     )
+    print("diffusion model made")
 
     # load diffusion model from Arguments
     # job_name = wandb_proj_name.split("/")[-1]

@@ -94,6 +94,8 @@ def eval_original_actors(make_env: Callable, expert_agent, num_episodes: int = 1
     name = sample_env.unwrapped.spec.name
 
     # NOTE: for laggy_actor, look at diffusha/actor/base.py
+    laggy_actor_repeat_prob = 0.6
+    noisy_actor_eps = 0.6
 
     actors = {
         name: actor

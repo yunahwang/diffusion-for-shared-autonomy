@@ -80,8 +80,8 @@ INITIAL_JOINT_POSITIONS = np.array([
 
 DEFAULT_CAMERA_POSE = (1., 0, 0.75)
 DEFAULT_CAMERA_ORIENTATION = (np.pi / 4, np.pi, -np.pi / 2)
-IMAGE_WIDTH = 320
-IMAGE_HEIGHT = 240
+IMAGE_WIDTH = 640 # was 320
+IMAGE_HEIGHT = 480 # was 240
 CAMERA_INTRINSICS = (0.803*IMAGE_WIDTH,  # fx
                      0,
                      IMAGE_WIDTH/2.,  # cx
@@ -196,7 +196,8 @@ class BlockPush(gym.Env):
     if visuals_mode != 'default' and visuals_mode != 'real':
       raise ValueError('visuals_mode must be `real` or `default`.')
     self._task = task
-    self._connection_mode = pybullet.DIRECT
+    #self._connection_mode = pybullet.DIRECT
+    self._connection_mode = pybullet.GUI
     if shared_memory:
       self._connection_mode = pybullet.SHARED_MEMORY
 
@@ -330,6 +331,12 @@ class BlockPush(gym.Env):
 
     # Temporarily disable rendering to speed up loading URDFs.
     pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 0)
+    self._pybullet_client.resetDebugVisualizerCamera(
+      cameraDistance=1.8,
+      cameraYaw = 45,
+      cameraPitch=-30,
+      cameraTargetPosition=[0.4, 0, 0]
+    )
 
     self._setup_workspace_and_robot()
 

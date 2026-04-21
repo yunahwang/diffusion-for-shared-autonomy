@@ -77,7 +77,8 @@ def get_datadir(env_name, randp):
     elif "BlockPushMultimodal" in env_name:
         data_dir = [
             f"{Args.blockpush_data_dir}/{target}/randp_{randp:.1f}"
-            for target in ["target", "target-flipped"]
+            #for target in ["target", "target-flipped"]
+            for target in ["target"]
         ]
         assert (
             randp != 0.6
@@ -114,6 +115,8 @@ def main():
         data_dir = get_datadir(Args.env_name, Args.randp)
     else:
         data_dir = [get_datadir(env_name, Args.randp) for env_name in Args.dataset_envs]
+
+    print("this is data_dir, ", data_dir)
 
     if isinstance(data_dir, list):
         dataset = MultiExpertTransitionDataset(
@@ -185,6 +188,7 @@ if __name__ == "__main__":
         project="diffusha",
         group=f"training-{sweep_basename}",
         config=vars(Args),
+        mode="offline"
     )
     main()
     wandb.finish()

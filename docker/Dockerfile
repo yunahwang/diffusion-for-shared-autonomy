@@ -138,7 +138,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install gym[box2d]==0.22 pfrl
 RUN pip install pygame opencv-python
-ENV SDL_VIDEODRIVER="dummy"
+#ENV SDL_VIDEODRIVER="dummy"
 RUN pip install params_proto termcolor pandas
 RUN pip install ConfigArgParse trimesh scipy h5py matplotlib mplot3d-dragger pyglet
 
@@ -183,4 +183,4 @@ ENV D4RL_SUPPRESS_IMPORT_ERROR=1
 # Avoid `fatal: detected dubious ownership in repository at '/code'` by git
 RUN git config --global --add safe.directory /code
 
-ENTRYPOINT ["/opt/mujoco_py/vendor/Xdummy-entrypoint"]
+#ENTRYPOINT ["/opt/mujoco_py/vendor/Xdummy-entrypoint"]

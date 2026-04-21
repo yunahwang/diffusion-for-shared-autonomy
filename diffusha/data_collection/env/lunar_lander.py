@@ -555,7 +555,7 @@ class LunarLander(gym.Env, EzPickle):
 
     def render(self, mode="human"):
         if self.screen is None:
-            # pygame.init()
+            pygame.init()
             pygame.display.init()
             pygame.font.init()
             self.screen = pygame.display.set_mode((VIEWPORT_W, VIEWPORT_H))

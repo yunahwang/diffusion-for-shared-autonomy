@@ -41,7 +41,14 @@ class ReplayBuffer:
         self._file_cache = {}
 
         # If there are files in the directory, lets read all files first
+        # for fname in self.directory.iterdir():
+        #     print(f"loading {fname} from {self.directory}...")
+        #     self._file_cache[fname] = torch.load(fname)
         for fname in self.directory.iterdir():
+            if not fname.is_file():
+                continue
+            if fname.suffix != ".pkl":
+                continue
             print(f"loading {fname} from {self.directory}...")
             self._file_cache[fname] = torch.load(fname)
 
