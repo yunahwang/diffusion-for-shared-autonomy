@@ -48,6 +48,7 @@ def prepare_diffusha(
         act_size = act_space.low.size
 
     # Load diffusion model
+    #print("beta_schedule, ", Args.beta_schedule)
     diffusion = DiffusionModel(
         diffusion_core=DiffusionCore(),
         num_diffusion_steps=Args.num_diffusion_steps,
@@ -64,7 +65,9 @@ def prepare_diffusha(
     # model_path = (
     #     Path(Args.ddpm_model_path) / job_name / wandb_run_id / f"step_{step:08d}.pt"
     # )
-    model_path = model_dir / f"step_{step:08d}.pt"
+
+    #print(Path(__file__).parents[3])
+    model_path =  model_dir / f"step_{step:08d}.pt"
     print(f"Loading a model from {str(model_path)}")
     checkpoint = torch.load(model_path)
     diffusion.model.load_state_dict(checkpoint["model"])

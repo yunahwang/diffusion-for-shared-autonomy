@@ -93,16 +93,24 @@ def get_effector_xy_from_obs(ob):
     Works for BlockPush-style obs dicts.
     Returns 2D end-effector position.
     """
-    if isinstance(ob, dict):
-        if "effector_translation" in ob:
-            xy = np.asarray(ob["effector_translation"], dtype=np.float32)
-            return xy[:2]
-        elif "pilot" in ob and isinstance(ob["pilot"], dict):
-            xy = np.asarray(ob["pilot"]["effector_translation"], dtype=np.float32)
-            return xy[:2]
+    print("ob, ", ob)
+    # if isinstance(ob, dict):
+    #     if "effector_translation" in ob:
+    #         xy = np.asarray(ob["effector_translation"], dtype=np.float32)
+    #         return xy[:2]
+    #     elif "pilot" in ob and isinstance(ob["pilot"], dict):
+    #         xy = np.asarray(ob["pilot"]["effector_translation"], dtype=np.float32)
+    #         return xy[:2]
 
-    # fallback if obs is already flat and you know indices later
-    raise ValueError("Could not find effector_translation in observation.")
+    # # fallback if obs is already flat and you know indices later
+    # raise ValueError("Could not find effector_translation in observation.")
+
+    # end = [ob[3], ob[4], 0]
+    # start = [0,0,0]
+
+    # return start, end
+    return [ob[3], ob[4]]
+
 
 
 def draw_action_arrows(pb_client, ob, raw_action, assisted_action,
@@ -130,11 +138,13 @@ def draw_action_arrows(pb_client, ob, raw_action, assisted_action,
         float(z),
     ]
 
+    print("ee_xy, ", ee_xy, " raw_action, ", raw_action, "raw_end, ", raw_end)
+
     raw_line_id = pb_client.addUserDebugLine(
         start,
         raw_end,
         lineColorRGB=[0, 1, 0],   # green
-        lineWidth=3,
+        lineWidth=10,
         lifeTime=0.08,
         replaceItemUniqueId=(-1 if raw_line_id is None else raw_line_id),
     )
@@ -143,33 +153,58 @@ def draw_action_arrows(pb_client, ob, raw_action, assisted_action,
         start,
         assisted_end,
         lineColorRGB=[1, 0, 0],   # red
-        lineWidth=3,
+        lineWidth=10,
         lifeTime=0.08,
         replaceItemUniqueId=(-1 if assisted_line_id is None else assisted_line_id),
     )
 
     return raw_line_id, assisted_line_id
 
+def draw_action_trajectory(pb_client, raw_log, assisted_log,
+                            traj_ids=None, z=0.05, lifetime=0.12):
+    """
+    Treats action[0], action[1] as x, y coordinates and draws
+    line segments connecting consecutive points.
+    green = raw, red = assisted.
+    Only draws the newest segment each step (from prev to current).
+    """
+    traj_ids = traj_ids or {"raw": [], "assisted": []}
 
-def draw_status_text(pb_client, text, text_id=None, pos=(0.18, -0.48, 0.22)):
-    text_id = pb_client.addUserDebugText(
-        text=text,
-        textPosition=list(pos),
-        textColorRGB=[1, 1, 1],
-        textSize=1.2,
-        lifeTime=0.08,
-        replaceItemUniqueId=(-1 if text_id is None else text_id),
-    )
-    return text_id
+    if len(raw_log) >= 2:
+        prev_ee, prev_r = raw_log[-2]
+        curr_ee, curr_r = raw_log[-1]
+        rid = pb_client.addUserDebugLine(
+            [float(prev_ee[0] + prev_r[0]), float(prev_ee[1] + prev_r[1]), z],
+            [float(curr_ee[0] + curr_r[0]), float(curr_ee[1] + curr_r[1]), z],
+            lineColorRGB=[0, 1, 0],
+            lineWidth=2,
+            lifeTime=lifetime,
+        )
+        traj_ids["raw"].append(rid)
+
+    if len(assisted_log) >= 2:
+        prev_ee, prev_a = assisted_log[-2]
+        curr_ee, curr_a = assisted_log[-1]
+        aid = pb_client.addUserDebugLine(
+            [float(prev_ee[0] + prev_a[0]), float(prev_ee[1] + prev_a[1]), z],
+            [float(curr_ee[0] + curr_a[0]), float(curr_ee[1] + curr_a[1]), z],
+            lineColorRGB=[1, 0, 0],
+            lineWidth=2,
+            lifeTime=lifetime,
+        )
+        traj_ids["assisted"].append(aid)
+
+    return traj_ids
+
 
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
     # TODO - change the following things
-    no_assist = True # if False, use DiffusionAssistedActor
+    no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
     draw_arrows = False
-    fwd_diff_ratio = 0.4
+    fwd_diff_ratio = 0.2
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -204,8 +239,9 @@ if __name__ == '__main__':
         with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
             env2config = json.load(f)
 
-        model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
+        #model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
         
+        model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
         laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
 
         diffusion = prepare_diffusha(
@@ -239,54 +275,59 @@ if __name__ == '__main__':
         # load human demonstrator
         for ep in range(10000):
             ob = env.reset()
-            test_action = np.array([0.5, -0.5], dtype=np.float32)
-            print("manual test input:", test_action, flush=True)
+            # test_action = np.array([0.5, -0.5], dtype=np.float32)
+            # print("manual test input:", test_action, flush=True)
 
-            test_out, test_diff = assisted_actor.act_without_env(
-                ob, test_action, report_diff=True
-            )
-            print("manual test output:", test_out, "diff:", test_diff, flush=True)
-            env.render()
+            # test_out, test_diff = assisted_actor.act_without_env(
+            #     ob, test_action, report_diff=True
+            # )
+            # print("manual test output:", test_out, "diff:", test_diff, flush=True)
+            # env.render()
             
-            # done = False
-            # reward = 0.0
-            # step_i = 0
+            done = False
+            reward = 0.0
+            step_i = 0
 
-            # while not done:
-            #     env.render()
+            raw_log      = []
+            assisted_log = []
+            traj_ids     = {"raw": [], "assisted": []}
+
+            while not done:
+                env.render()
                 
-            #     raw_action = actor.act(ob)
-            #     assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff = True)
+                raw_action = actor.act(ob)
+                print("[before] raw action, ", raw_action, flush = True)
+                assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff = True)
 
-            #     #print("raw action, ", raw_action, " assisted_action, ", assisted_action, "diff, ", diff)
+                print("assisted_action, ", assisted_action, flush = True)
+                #print("diff, ", diff, flush = True)
 
-            #     print("raw action, ", raw_action, flush = True)
-            #     print("assisted_action, ", assisted_action, flush = True)
-            #     print("diff, ", diff, flush = True)
+                ee_xy = get_effector_xy_from_obs(ob)
+                raw_log.append((ee_xy, raw_action.copy()))
+                assisted_log.append((ee_xy, assisted_action.copy()))
 
-            #     if draw_arrows:
-            #         pb = env.unwrapped.pybullet_client
+                if draw_arrows:
+                    pb = env.unwrapped.pybullet_client
 
-            #         raw_line_id, assisted_line_id = draw_action_arrows(
-            #             pb,
-            #             ob,
-            #             raw_action,
-            #             assisted_action,
-            #             raw_line_id=raw_line_id,
-            #             assisted_line_id=assisted_line_id,
-            #             z=0.08,
-            #             scale=0.25,
-            #         )
-            #         text_id = draw_status_text(
-            #             pb,
-            #             text=(
-            #                 f"raw={np.round(raw_action, 3)}   "
-            #                 f"assist={np.round(assisted_action, 3)}   "
-            #                 f"diff={diff:.3f}   "
-            #                 f"reward={r:.3f}"
-            #             ),
-            #             text_id=text_id,
-            #         )
-            #     ob, r, done, _= env.step(assisted_action)
-            #     reward += r
-            # print("episode reward: ", reward)
+
+                    # raw_line_id, assisted_line_id = draw_action_arrows(
+                    #     pb,
+                    #     ob,
+                    #     raw_action,
+                    #     assisted_action,
+                    #     raw_line_id=raw_line_id,
+                    #     assisted_line_id=assisted_line_id,
+                    #     z=0,
+                    #     scale=1,
+                    # )
+
+                    traj_ids = draw_action_trajectory(
+                        pb, raw_log, assisted_log,
+                        traj_ids=traj_ids,
+                        z=0.05,
+                        lifetime=1.5,   # 0 = persist until next episode
+                    )
+
+                ob, r, done, _= env.step(assisted_action)
+                reward += r
+            print("episode reward: ", reward)

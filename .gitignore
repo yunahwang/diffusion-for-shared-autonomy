@@ -15,3 +15,6 @@ wandb/
 .output/
 etc/
 *.tar.gz
+
+data-dir/
+data/

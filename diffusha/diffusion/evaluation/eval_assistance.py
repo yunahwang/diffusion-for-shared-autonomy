@@ -194,7 +194,7 @@ if __name__ == '__main__':
     # Retrieve Args from wandb; NOTE: This updates Args internally!!
     diffusion = prepare_diffusha(
         env2config[args.env_name],
-        Path(Args.ddpm_model_path) / args.env_name.lower(),
+        Path(__file__).parents[3] / "data-dir" / "ddpm" / args.env_name.lower(),
         env2step[args.env_name],
         args.env_name,
         fwd_diff_ratio,

@@ -6,6 +6,8 @@ from diffusha.config.default_args import Args
 from contextlib import contextmanager
 
 def make_beta_schedule(schedule='linear', n_timesteps=1000, start=1e-5, end=1e-2):
+    print("start, ", start)
+    print("end, ", end)
     if schedule == 'linear':
         betas = torch.linspace(start, end, n_timesteps)
     elif schedule == "quad":

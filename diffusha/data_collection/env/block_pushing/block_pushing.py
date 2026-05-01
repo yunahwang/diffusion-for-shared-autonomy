@@ -196,6 +196,7 @@ class BlockPush(gym.Env):
     if visuals_mode != 'default' and visuals_mode != 'real':
       raise ValueError('visuals_mode must be `real` or `default`.')
     self._task = task
+    
     #self._connection_mode = pybullet.DIRECT
     self._connection_mode = pybullet.GUI
     if shared_memory:

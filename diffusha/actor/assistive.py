@@ -64,7 +64,7 @@ class DiffusionAssistedActor(Actor):
         else:
             x_k, e = self.diffusion.diffuse(state, torch.as_tensor([self._k]))
 
-        print("x_k after diffuse:", x_k.detach().cpu().numpy(), flush=True)
+        #print("x_k after diffuse:", x_k.detach().cpu().numpy(), flush=True)
         
         # Reverse diffuse Tensor([*crisp_obs, *noisy_user_act]) for (diffusion.num_diffusion_steps - k) steps
         obs = torch.as_tensor(obs, dtype=torch.float32)
@@ -75,16 +75,16 @@ class DiffusionAssistedActor(Actor):
             x_i = self.diffusion.p_sample(x_i, i)
             x_i[:, :obs_size] = obs  # Add condition
 
-            if i in [self._k - 1, max(self._k // 2, 0), 0]:
-                print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
+            # if i in [self._k - 1, max(self._k // 2, 0), 0]:
+            #     print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
 
         if not run_in_batch:
             out = x_i.squeeze()  # Remove batch dim
-            print("out, ", out)
+            #print("out, ", out)
             return out[obs_size:].cpu().numpy()
         else:
             out = x_i
-            print("out, ", out)
+            #print("out, ", out)
             return out[..., obs_size:].cpu().numpy()
 
 
@@ -168,7 +168,7 @@ class DiffusionAssistedActor(Actor):
         user_act = act
 
         if self.fwd_diff_ratio != 0:
-            #print("here when diff_ratio is not 0")
+            print("here when diff_ratio is not 0")
             action = self._diffusion_cond_sample(obs_copilot, user_act)
         else:
             action = user_act

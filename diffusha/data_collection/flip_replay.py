@@ -20,6 +20,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    print(Path(args.src_dir))
+    print(Path(args.tgt_dir))
     assert Path(args.src_dir).is_dir()
     assert not Path(args.tgt_dir).is_dir()
 

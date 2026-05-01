@@ -12,7 +12,7 @@ class Args(ParamsProto):
     beta_min = 1e-4
     beta_max = 0.26
     beta_schedule = 'sigmoid'
-    ddpm_model_path = '/data/ddpm'
+    ddpm_model_path = '/data-dir/ddpm'
 
     num_training_steps = 100_000
     eval_every = 2000
@@ -31,7 +31,7 @@ class Args(ParamsProto):
     seed = 0
 
     # Used in evaluation
-    fwd_diff_ratio = 0.8 # trying 0.1, 0.4 (default), and 0.8
+    fwd_diff_ratio = 0.2 # trying 0.1, 0.4 (default), and 0.8
     laggy_actor_repeat_prob = 0.8
     noisy_actor_eps = 0.8
 

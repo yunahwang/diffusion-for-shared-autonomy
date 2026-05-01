@@ -77,8 +77,8 @@ def get_datadir(env_name, randp):
     elif "BlockPushMultimodal" in env_name:
         data_dir = [
             f"{Args.blockpush_data_dir}/{target}/randp_{randp:.1f}"
-            #for target in ["target", "target-flipped"]
-            for target in ["target"]
+            for target in ["target", "target-flipped"]
+            #for target in ["target"]
         ]
         assert (
             randp != 0.6
@@ -116,7 +116,10 @@ def main():
     else:
         data_dir = [get_datadir(env_name, Args.randp) for env_name in Args.dataset_envs]
 
+    # data_dir = ['/data-dir/replay/blockpush/target/2026', '/data/replay/blockpush/target-flipped/2026']
+
     print("this is data_dir, ", data_dir)
+ 
 
     if isinstance(data_dir, list):
         dataset = MultiExpertTransitionDataset(

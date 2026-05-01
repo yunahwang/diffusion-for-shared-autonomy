@@ -44,6 +44,15 @@ class DiffusionCore:
 
         return err.square().mean()
 
+    def check_ood(
+        self, noise_estimation_loss, gamma_l, gamma_h, loss_h
+    ):
+        gamma = (noise_estimation_loss * (gamma_l - gamma_h)) / (loss_h) + gamma_h
+        
+        # if loss_l = 0 then (noise_estimation_loss - loss_l) / (loss_h - loss_l) = (gamma - gamma_h) / (loss_l - loss_h)
+
+        return gamma
+
     @torch.no_grad()
     def diffuse(
         self,

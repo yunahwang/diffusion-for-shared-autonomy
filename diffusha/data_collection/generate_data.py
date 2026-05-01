@@ -112,6 +112,8 @@ def main(save_video):
         )
     else:
         raise ValueError(f"{DCArgs.env_name} is not supported")
+    
+    print(DCArgs.blockpush_user_goal)
 
     replay_buffer = ReplayBuffer(datadir, obs_size, act_size)
 
@@ -250,5 +252,5 @@ if __name__ == "__main__":
         group="generate_data",
         config={"Args": vars(Args), "DCArgs": vars(DCArgs)},
     )
-    main(save_video=True)
+    main(save_video=False)
     wandb.finish()
