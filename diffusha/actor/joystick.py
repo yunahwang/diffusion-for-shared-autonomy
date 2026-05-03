@@ -87,104 +87,18 @@ def get_effector_xy_from_obs(ob):
     return [ob[3], ob[4]]
 
 
-
-def draw_action_arrows(pb_client, ob, raw_action, assisted_action,
-                       raw_line_id=None, assisted_line_id=None,
-                       z=0.08, scale=0.25):
-    """
-    Draws:
-      green arrow = raw joystick action
-      red arrow   = assisted action
-
-    Returns updated line ids so they can be replaced next frame.
-    """
-    ee_xy = get_effector_xy_from_obs(ob)
-
-    start = [float(ee_xy[0]), float(ee_xy[1]), float(z)]
-
-    raw_end = [
-        float(ee_xy[0] + scale * raw_action[0]),
-        float(ee_xy[1] + scale * raw_action[1]),
-        float(z),
-    ]
-    assisted_end = [
-        float(ee_xy[0] + scale * assisted_action[0]),
-        float(ee_xy[1] + scale * assisted_action[1]),
-        float(z),
-    ]
-
-    print("ee_xy, ", ee_xy, " raw_action, ", raw_action, "raw_end, ", raw_end)
-
-    raw_line_id = pb_client.addUserDebugLine(
-        start,
-        raw_end,
-        lineColorRGB=[0, 1, 0],   # green
-        lineWidth=10,
-        lifeTime=0.08,
-        replaceItemUniqueId=(-1 if raw_line_id is None else raw_line_id),
-    )
-
-    assisted_line_id = pb_client.addUserDebugLine(
-        start,
-        assisted_end,
-        lineColorRGB=[1, 0, 0],   # red
-        lineWidth=10,
-        lifeTime=0.08,
-        replaceItemUniqueId=(-1 if assisted_line_id is None else assisted_line_id),
-    )
-
-    return raw_line_id, assisted_line_id
-
-def draw_action_trajectory(pb_client, raw_log, assisted_log,
-                            traj_ids=None, z=0.05, lifetime=0.12):
-    """
-    Treats action[0], action[1] as x, y coordinates and draws
-    line segments connecting consecutive points.
-    green = raw, red = assisted.
-    Only draws the newest segment each step (from prev to current).
-    """
-    traj_ids = traj_ids or {"raw": [], "assisted": []}
-
-    if len(raw_log) >= 2:
-        prev_ee, prev_r = raw_log[-2]
-        curr_ee, curr_r = raw_log[-1]
-        rid = pb_client.addUserDebugLine(
-            [float(prev_ee[0] + prev_r[0]), float(prev_ee[1] + prev_r[1]), z],
-            [float(curr_ee[0] + curr_r[0]), float(curr_ee[1] + curr_r[1]), z],
-            lineColorRGB=[0, 1, 0],
-            lineWidth=2,
-            lifeTime=lifetime,
-        )
-        traj_ids["raw"].append(rid)
-
-    if len(assisted_log) >= 2:
-        prev_ee, prev_a = assisted_log[-2]
-        curr_ee, curr_a = assisted_log[-1]
-        aid = pb_client.addUserDebugLine(
-            [float(prev_ee[0] + prev_a[0]), float(prev_ee[1] + prev_a[1]), z],
-            [float(curr_ee[0] + curr_a[0]), float(curr_ee[1] + curr_a[1]), z],
-            lineColorRGB=[1, 0, 0],
-            lineWidth=2,
-            lifeTime=lifetime,
-        )
-        traj_ids["assisted"].append(aid)
-
-    return traj_ids
-
-
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
-    # TODO - change the following things
+    
     no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
-    draw_arrows = True
-    fwd_diff_ratio = 0.2
+    draw_trajs = True
+    fwd_diff_ratio = 1.0 # NOTE - change this
 
     env_name =  "BlockPushMultimodal-v1"
 
     env = make_env(
-        #"LunarLander-v3",
         env_name,
         seed=1,
         test=False
@@ -259,89 +173,76 @@ if __name__ == '__main__':
             reward = 0.0
             step_i = 0
 
+            ee_log = []
             raw_log      = []
             assisted_log = []
+
             traj_ids     = {"raw": [], "assisted": []}
+
+            # # Before the while loop, get initial EE position
+            # raw_ee_x, raw_ee_y = ob[3], ob[4]  # starting position is same for both
+            # ass_ee_x, ass_ee_y = ob[3], ob[4]
 
             while not done:
                 env.render()
-                
-                raw_action = actor.act(ob)
-                print("[before] raw action, ", raw_action, flush = True)
-                assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff = True)
-
-                print("assisted_action, ", assisted_action, flush = True)
-                #print("diff, ", diff, flush = True)
 
                 ee_xy = get_effector_xy_from_obs(ob)
+                ee_log.append(ee_xy)
+
+                raw_action = actor.act(ob)
+                print("[before] raw action, ", raw_action, flush=True)
+
+                assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
+                print("assisted_action, ", assisted_action, flush=True)
+
                 raw_log.append((ee_xy, raw_action.copy()))
                 assisted_log.append((ee_xy, assisted_action.copy()))
 
-                if draw_arrows:
+                if draw_trajs:
                     ax.clear()
-                    # After ax.clear(), draw the two targets
-                    # ax.scatter([ 0.1, -0.1], [0.0, 0.0], 
-                    #     c='blue', marker='*', s=200, zorder=6, label='targets')
-                    
+
                     size = 0.12
                     half = size / 2
 
-                    for tx, ty, color, label in [
-                        ( 0.1, 0.0, 'blue',   'target 1'),
-                        (-0.1, 0.0, 'purple', 'target 2'),
+                    for tx, ty, bcolor, icolor, label in [
+                        ( 0.1, 0.0, 'green', 'green', 'target 1'),
+                        (-0.1, 0.0, 'red',   'red',   'target 2'),
                     ]:
                         ax.add_patch(Rectangle(
                             (tx - half, ty - half), size, size,
-                            linewidth=2, edgecolor=color, facecolor='lightyellow', alpha=0.4, label=label))
-                    ee_xs = [p[0][0] for p in raw_log]
-                    ee_ys = [p[0][1] for p in raw_log]
+                            linewidth=2, edgecolor=bcolor, facecolor=icolor, alpha=0.4, label=label))
 
-                    raw_end_xs = [p[0][0] + p[1][0] for p in raw_log]
-                    raw_end_ys = [p[0][1] + p[1][1] for p in raw_log]
+                    # Real EE path
+                    ee_xs = [p[0] for p in ee_log]
+                    ee_ys = [p[1] for p in ee_log]
+                    ax.plot(ee_xs, ee_ys, 'k--', linewidth=2, label='actual EE')
 
-                    ass_end_xs = [p[0][0] for p in assisted_log]
-                    ass_end_ys = [p[0][1] for p in assisted_log]
+                    # Arrow at current step: raw intent
+                    ax.annotate('', xy=(ee_xs[-1] + raw_action[0], ee_ys[-1] + raw_action[1]),
+                                xytext=(ee_xs[-1], ee_ys[-1]),
+                                arrowprops=dict(arrowstyle='->', color='blue', lw=2))
 
-                    # Plot ee trajectory
-                    #$ax.plot(ee_xs, ee_ys, 'k--', linewidth=1, label='EE path')
+                    # Arrow at current step: assisted intent
+                    ax.annotate('', xy=(ee_xs[-1] + assisted_action[0], ee_ys[-1] + assisted_action[1]),
+                                xytext=(ee_xs[-1], ee_ys[-1]),
+                                arrowprops=dict(arrowstyle='->', color='orange', lw=2))
 
-                    # # Current step arrow: ee -> raw action endpoint
-                    # ax.annotate('', xy=(raw_end_xs[-1], raw_end_ys[-1]),
-                    #             xytext=(ee_xs[-1], ee_ys[-1]),
-                    #             arrowprops=dict(arrowstyle='->', color='green', lw=2))
-
-                    # # Current step arrow: ee -> assisted action endpoint
-                    # ax.annotate('', xy=(ass_end_xs[-1], ass_end_ys[-1]),
-                    #             xytext=(ee_xs[-1], ee_ys[-1]),
-                    #             arrowprops=dict(arrowstyle='->', color='red', lw=2))
-
-                    ax.plot(ass_end_xs, ass_end_ys, "k--", linewidth=1)
-
+                    ax.legend(handles=[
+                        mpatches.Patch(color='black',  label='actual EE'),
+                        mpatches.Patch(color='blue',   label='raw action'),
+                        mpatches.Patch(color='orange', label='assisted action'),
+                        # mpatches.Patch(color='green',  label='target 1'),
+                        # mpatches.Patch(color='red',    label='target 2'),
+                    ])
                     ax.set_xlim(-0.4, 0.4)
-                    ax.set_ylim(-0.6, 0.3)
-
-                    # Scatter current ee position
-                    #ax.scatter(ee_xs[-1], ee_ys[-1], c='black', zorder=5)
+                    ax.set_ylim(-1.0, 0.3)
+                    ax.set_aspect('equal')
+                    ax.set_title(f'Episode {ep}  Step {step_i}')
 
                     plt.pause(0.001)
-                    # raw_line_id, assisted_line_id = draw_action_arrows(
-                    #     pb,
-                    #     ob,
-                    #     raw_action,
-                    #     assisted_action,
-                    #     raw_line_id=raw_line_id,
-                    #     assisted_line_id=assisted_line_id,
-                    #     z=0,
-                    #     scale=1,
-                    # )
 
-                    # traj_ids = draw_action_trajectory(
-                    #     pb, raw_log, assisted_log,
-                    #     traj_ids=traj_ids,
-                    #     z=0.05,
-                    #     lifetime=1.5,   # 0 = persist until next episode
-                    # )
-
-                ob, r, done, _= env.step(assisted_action)
+                #ob, r, done, _ = env.step(raw_action)
+                ob, r, done, _ = env.step(assisted_action)
                 reward += r
+                step_i += 1
             print("episode reward: ", reward)
