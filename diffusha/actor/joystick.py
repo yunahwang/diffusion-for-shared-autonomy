@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Adopted from https://github.com/cbschaff/rsa/blob/master/lunar_lander/joystick_agent.py"""
 
-import time
 import pygame
 import numpy as np
+import torch
+
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
+
 import json
 from pathlib import Path
 
@@ -82,7 +84,7 @@ def get_effector_xy_from_obs(ob):
     Works for BlockPush-style obs dicts.
     Returns 2D end-effector position.
     """
-    print("ob, ", ob)
+    #print("ob, ", ob)
 
     return [ob[3], ob[4]]
 
@@ -179,10 +181,6 @@ if __name__ == '__main__':
 
             traj_ids     = {"raw": [], "assisted": []}
 
-            # # Before the while loop, get initial EE position
-            # raw_ee_x, raw_ee_y = ob[3], ob[4]  # starting position is same for both
-            # ass_ee_x, ass_ee_y = ob[3], ob[4]
-
             while not done:
                 env.render()
 
@@ -190,13 +188,20 @@ if __name__ == '__main__':
                 ee_log.append(ee_xy)
 
                 raw_action = actor.act(ob)
-                print("[before] raw action, ", raw_action, flush=True)
+                #print("[before] raw action, ", raw_action, flush=True)
 
                 assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
                 print("assisted_action, ", assisted_action, flush=True)
 
                 raw_log.append((ee_xy, raw_action.copy()))
                 assisted_log.append((ee_xy, assisted_action.copy()))
+
+                # get diffusion reconstruction loss
+                ob_tensor = torch.tensor(ob, dtype=torch.float32).unsqueeze(0)  # (1, obs_size)
+                raw_action_tensor = torch.tensor(raw_action, dtype=torch.float32).unsqueeze(0)  # (1, act_size)
+                x_0 = torch.cat([ob_tensor, raw_action_tensor], dim=-1)
+                loss = diffusion.noise_estimation_loss(x_0).item()
+                print("loss, ", loss)
 
                 if draw_trajs:
                     ax.clear()

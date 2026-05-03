@@ -168,7 +168,7 @@ class DiffusionAssistedActor(Actor):
         user_act = act
 
         if self.fwd_diff_ratio != 0:
-            print("here when diff_ratio is not 0")
+            #print("here when diff_ratio is not 0")
             action = self._diffusion_cond_sample(obs_copilot, user_act)
         else:
             action = user_act
