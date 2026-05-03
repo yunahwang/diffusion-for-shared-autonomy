@@ -4,6 +4,11 @@
 import time
 import pygame
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import Rectangle
 import json
 from pathlib import Path
 
@@ -62,22 +67,6 @@ class JoystickActor(Actor):
 
         return self.human_agent_action
 
-    # def _get_human_action(self):
-    #     events = pygame.event.get()
-    #     for event in events:
-    #         if event.type == pygame.JOYAXISMOTION:
-    #             if event.axis == UP_AXIS:
-    #                 print("up/down")
-    #                 # for up and down, right handel
-    #                 self.human_agent_action[0] = -0.02 * event.value
-    #             elif event.axis == SIDE_AXIS:
-    #                 print("left/right")
-    #                 # for left and right
-    #                 self.human_agent_action[1] = 0.02 * event.value
-    #     if abs(self.human_agent_action[1]) < 0.1:
-    #         #print("is it this?")
-    #         self.human_agent_action[0] = 0.0
-    #     return self.human_agent_action
 
     def act(self, ob):
         """Act."""
@@ -94,21 +83,7 @@ def get_effector_xy_from_obs(ob):
     Returns 2D end-effector position.
     """
     print("ob, ", ob)
-    # if isinstance(ob, dict):
-    #     if "effector_translation" in ob:
-    #         xy = np.asarray(ob["effector_translation"], dtype=np.float32)
-    #         return xy[:2]
-    #     elif "pilot" in ob and isinstance(ob["pilot"], dict):
-    #         xy = np.asarray(ob["pilot"]["effector_translation"], dtype=np.float32)
-    #         return xy[:2]
 
-    # # fallback if obs is already flat and you know indices later
-    # raise ValueError("Could not find effector_translation in observation.")
-
-    # end = [ob[3], ob[4], 0]
-    # start = [0,0,0]
-
-    # return start, end
     return [ob[3], ob[4]]
 
 
@@ -203,7 +178,7 @@ if __name__ == '__main__':
     # TODO - change the following things
     no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
-    draw_arrows = False
+    draw_arrows = True
     fwd_diff_ratio = 0.2
 
     env_name =  "BlockPushMultimodal-v1"
@@ -231,6 +206,10 @@ if __name__ == '__main__':
             print(reward)
 
     else:
+        plt.ion()
+        fig, ax = plt.subplots(figsize=(6,6))
+        plt.show(block = False)
+
         obs_space = env.observation_space
         act_space = env.action_space
         print("obs_space, ", obs_space)
@@ -275,14 +254,6 @@ if __name__ == '__main__':
         # load human demonstrator
         for ep in range(10000):
             ob = env.reset()
-            # test_action = np.array([0.5, -0.5], dtype=np.float32)
-            # print("manual test input:", test_action, flush=True)
-
-            # test_out, test_diff = assisted_actor.act_without_env(
-            #     ob, test_action, report_diff=True
-            # )
-            # print("manual test output:", test_out, "diff:", test_diff, flush=True)
-            # env.render()
             
             done = False
             reward = 0.0
@@ -307,9 +278,52 @@ if __name__ == '__main__':
                 assisted_log.append((ee_xy, assisted_action.copy()))
 
                 if draw_arrows:
-                    pb = env.unwrapped.pybullet_client
+                    ax.clear()
+                    # After ax.clear(), draw the two targets
+                    # ax.scatter([ 0.1, -0.1], [0.0, 0.0], 
+                    #     c='blue', marker='*', s=200, zorder=6, label='targets')
+                    
+                    size = 0.12
+                    half = size / 2
 
+                    for tx, ty, color, label in [
+                        ( 0.1, 0.0, 'blue',   'target 1'),
+                        (-0.1, 0.0, 'purple', 'target 2'),
+                    ]:
+                        ax.add_patch(Rectangle(
+                            (tx - half, ty - half), size, size,
+                            linewidth=2, edgecolor=color, facecolor='lightyellow', alpha=0.4, label=label))
+                    ee_xs = [p[0][0] for p in raw_log]
+                    ee_ys = [p[0][1] for p in raw_log]
 
+                    raw_end_xs = [p[0][0] + p[1][0] for p in raw_log]
+                    raw_end_ys = [p[0][1] + p[1][1] for p in raw_log]
+
+                    ass_end_xs = [p[0][0] for p in assisted_log]
+                    ass_end_ys = [p[0][1] for p in assisted_log]
+
+                    # Plot ee trajectory
+                    #$ax.plot(ee_xs, ee_ys, 'k--', linewidth=1, label='EE path')
+
+                    # # Current step arrow: ee -> raw action endpoint
+                    # ax.annotate('', xy=(raw_end_xs[-1], raw_end_ys[-1]),
+                    #             xytext=(ee_xs[-1], ee_ys[-1]),
+                    #             arrowprops=dict(arrowstyle='->', color='green', lw=2))
+
+                    # # Current step arrow: ee -> assisted action endpoint
+                    # ax.annotate('', xy=(ass_end_xs[-1], ass_end_ys[-1]),
+                    #             xytext=(ee_xs[-1], ee_ys[-1]),
+                    #             arrowprops=dict(arrowstyle='->', color='red', lw=2))
+
+                    ax.plot(ass_end_xs, ass_end_ys, "k--", linewidth=1)
+
+                    ax.set_xlim(-0.4, 0.4)
+                    ax.set_ylim(-0.6, 0.3)
+
+                    # Scatter current ee position
+                    #ax.scatter(ee_xs[-1], ee_ys[-1], c='black', zorder=5)
+
+                    plt.pause(0.001)
                     # raw_line_id, assisted_line_id = draw_action_arrows(
                     #     pb,
                     #     ob,
@@ -321,12 +335,12 @@ if __name__ == '__main__':
                     #     scale=1,
                     # )
 
-                    traj_ids = draw_action_trajectory(
-                        pb, raw_log, assisted_log,
-                        traj_ids=traj_ids,
-                        z=0.05,
-                        lifetime=1.5,   # 0 = persist until next episode
-                    )
+                    # traj_ids = draw_action_trajectory(
+                    #     pb, raw_log, assisted_log,
+                    #     traj_ids=traj_ids,
+                    #     z=0.05,
+                    #     lifetime=1.5,   # 0 = persist until next episode
+                    # )
 
                 ob, r, done, _= env.step(assisted_action)
                 reward += r
