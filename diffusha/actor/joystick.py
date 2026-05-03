@@ -122,9 +122,6 @@ if __name__ == '__main__':
             print(reward)
 
     else:
-        plt.ion()
-        fig, ax = plt.subplots(figsize=(6,6))
-        plt.show(block = False)
 
         obs_space = env.observation_space
         act_space = env.action_space
@@ -167,6 +164,10 @@ if __name__ == '__main__':
         assisted_line_id = None
         text_id = None
 
+        plt.ion()
+        fig, (ax, ax_loss) = plt.subplots(1, 2, figsize=(12,6))
+        plt.show(block = False)
+
         # load human demonstrator
         for ep in range(10000):
             ob = env.reset()
@@ -178,6 +179,7 @@ if __name__ == '__main__':
             ee_log = []
             raw_log      = []
             assisted_log = []
+            loss_log = []
 
             traj_ids     = {"raw": [], "assisted": []}
 
@@ -202,9 +204,15 @@ if __name__ == '__main__':
                 x_0 = torch.cat([ob_tensor, raw_action_tensor], dim=-1)
                 loss = diffusion.noise_estimation_loss(x_0).item()
                 print("loss, ", loss)
+                loss_log.append(loss)
 
                 if draw_trajs:
                     ax.clear()
+                    ax_loss.clear()
+                    ax_loss.plot(loss_log, 'purple', linewidth=2)
+                    ax_loss.set_title('noise estimation loss')
+                    ax_loss.set_xlabel('step')
+                    ax_loss.set_ylabel('loss')
 
                     size = 0.12
                     half = size / 2
