@@ -2,9 +2,13 @@
 """Adopted from https://github.com/cbschaff/rsa/blob/master/lunar_lander/joystick_agent.py"""
 
 import pygame
+
 import numpy as np
 import pandas as pd
+
 import torch
+
+import imageio
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -145,10 +149,16 @@ if __name__ == '__main__':
         raw_to_which_side = "left"
         subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side
         os.makedirs(subdir_path, exist_ok=True)
+
+        time_rn = "%Y%m%d-%H%M%S"
     
-        csv_name = time.strftime("%Y%m%d-%H%M%S")+".csv"
+        csv_name = time.strftime(time_rn)+".csv"
         csv_full_path = subdir_path / csv_name
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
+
+        gif_name = time.strftime(time_rn)+".gif"
+        gif_full_path = subdir_path / gif_name
+
 
         laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
 
@@ -196,6 +206,9 @@ if __name__ == '__main__':
         raw_input_action_x = []; raw_input_action_y = []
         assisted_action_x = []; assisted_action_y = []
         which_side = []
+
+        # save as gif
+        frames = []
 
         # load human demonstrator
         for ep in range(1, 3):
@@ -352,6 +365,13 @@ if __name__ == '__main__':
 
                     plt.pause(0.001)
 
+                    fig.canvas.draw()
+
+                    # grab the raw RGBA buffer and convert to image
+                    frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+                    frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                    frames.append(frame)
+
                 # 1st col: episode
                 eps.append(ep)
 
@@ -380,6 +400,8 @@ if __name__ == '__main__':
                 # last col: gamma
                 gammas.append(fwd_diff_ratio)
                 # print("which_side, ", which_side)
+
+                time.sleep(0.5)
             
             print("episode reward: ", reward)
             if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
@@ -405,3 +427,4 @@ if __name__ == '__main__':
         })
         df.to_csv(csv_full_path, index = False)
 
+        imageio.mimsave(gif_full_path, frames, fps = 10)
