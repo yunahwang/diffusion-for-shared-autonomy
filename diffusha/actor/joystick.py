@@ -427,4 +427,4 @@ if __name__ == '__main__':
         })
         df.to_csv(csv_full_path, index = False)
 
-        imageio.mimsave(gif_full_path, frames, fps = 10)
+        imageio.mimsave(gif_full_path, frames, fps = 2)
