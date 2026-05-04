@@ -3,6 +3,7 @@
 
 import pygame
 import numpy as np
+import pandas as pd
 import torch
 
 import matplotlib
@@ -15,6 +16,9 @@ from sklearn.decomposition import PCA
 
 import json
 from pathlib import Path
+import os
+import time
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -98,7 +102,7 @@ if __name__ == '__main__':
     no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
     draw_trajs = True
-    fwd_diff_ratio = 0.2 # NOTE - change this
+    fwd_diff_ratio = 1.0 # NOTE - change this and also line 145
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -136,6 +140,16 @@ if __name__ == '__main__':
         #model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
         
         model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
+
+        # NOTE: change here 
+        raw_to_which_side = "left"
+        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side
+        os.makedirs(subdir_path, exist_ok=True)
+    
+        csv_name = time.strftime("%Y%m%d-%H%M%S")+".csv"
+        csv_full_path = subdir_path / csv_name
+        # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
+
         laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
 
         diffusion = prepare_diffusha(
@@ -167,7 +181,6 @@ if __name__ == '__main__':
         text_id = None
 
         plt.ion()
-        #fig, (ax, ax_loss) = plt.subplots(1, 2, figsize=(12,6))
         fig = plt.figure(figsize=(12, 6))
         
         ax = fig.add_subplot(1,2,1)
@@ -175,8 +188,18 @@ if __name__ == '__main__':
         ax_action = fig.add_subplot(2,2,4)
         plt.show(block = False)
 
+        # csv logging containers
+        # columns of the csv is as follows: 
+        # episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
+
+        eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []
+        raw_input_action_x = []; raw_input_action_y = []
+        assisted_action_x = []; assisted_action_y = []
+        which_side = []
+
         # load human demonstrator
-        for ep in range(10000):
+        for ep in range(1, 3):
+            # NOTE: change this number
             ob = env.reset()
             
             done = False
@@ -198,7 +221,7 @@ if __name__ == '__main__':
                 env.render()
 
                 ob_log.append(ob.copy())
-                print("ob", len(ob))
+                #print("ob", len(ob))
 
                 ee_xy = get_effector_xy_from_obs(ob)
                 ee_log.append(ee_xy)
@@ -211,8 +234,20 @@ if __name__ == '__main__':
                 assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
                 print("assisted_action, ", assisted_action, flush=True)
 
-                raw_log.append((ee_xy, raw_action.copy()))
-                assisted_log.append((ee_xy, assisted_action.copy()))
+                # 6th column: diffs
+                diffs.append(diff)
+
+                raw_log.append((ee_xy, raw_action.copy())) 
+                
+                # 7th column: raw action - take [1]
+                raw_input_action_x.append(raw_action.copy()[0])
+                raw_input_action_y.append(raw_action.copy()[1])
+
+                assisted_log.append((ee_xy, assisted_action.copy())) 
+                
+                # 8th column: assisted action - take [1]
+                assisted_action_x.append(assisted_action.copy()[0])
+                assisted_action_y.append(assisted_action.copy()[1])
 
                 # get diffusion reconstruction loss
                 ob_tensor = torch.tensor(ob, dtype=torch.float32).unsqueeze(0)  # (1, obs_size)
@@ -220,7 +255,7 @@ if __name__ == '__main__':
                 x_0 = torch.cat([ob_tensor, raw_action_tensor], dim=-1)
                 loss = diffusion.noise_estimation_loss(x_0).item()
                 print("loss, ", loss)
-                loss_log.append(loss)
+                loss_log.append(loss) # 5th column: loss
 
                 pca = PCA(n_components=2)
 
@@ -255,23 +290,8 @@ if __name__ == '__main__':
                         # highlight the very-moment one in scatter plot
                         ax_action.scatter(*curr_2d, c='black', s=100, zorder=6)
 
-                        # arrows 
-                        # ax_action.annotate('', xy=curr_2d + (raw_2d - curr_2d) * 0.3,
-                        #                 xytext=curr_2d,
-                        #                 arrowprops=dict(arrowstyle='->', color='blue', lw=3, mutation_scale = 20))
-                        # # ax_action.annotate('', xy=curr_2d + (assisted_2d - curr_2d) * 0.3,
-                        # #                 xytext=curr_2d,
-                        #                 arrowprops=dict(arrowstyle='->', color='orange', lw=3, mutation_scale = 20))
-
                         raw_dir      = (raw_2d - curr_2d) * 3.0
                         assisted_dir = (assisted_2d - curr_2d) * 3.0
-
-                        # ax_action.quiver(*curr_2d, raw_dir[0], raw_dir[1],
-                        #                 angles='xy', scale_units='xy', scale=1,
-                        #                 color='blue', width=0.01, zorder=7)
-                        # ax_action.quiver(*curr_2d, assisted_dir[0], assisted_dir[1],
-                        #                 angles='xy', scale_units='xy', scale=1,
-                        #                 color='orange', width=0.01, zorder=7)
 
                         ax_action.quiver(*prev_2d, 
                                         *(curr_2d - prev_2d),  # direction toward current
@@ -332,8 +352,56 @@ if __name__ == '__main__':
 
                     plt.pause(0.001)
 
+                # 1st col: episode
+                eps.append(ep)
+
+                # 2nd col: which_side
+                # NOTE: determine which side did the end effector go into
+                # if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
+                #     side_val = 1 if info['state'] == 'target' else 0
+                #     which_side = [side_val] * len(steps_accum)  # backfill all steps
+                # else:
+                #     which_side.append(np.nan)
+
+                which_side.append(np.nan)
+
                 #ob, r, done, _ = env.step(raw_action)
-                ob, r, done, _ = env.step(assisted_action)
+                ob, r, done, info = env.step(assisted_action)
+                print("done, ", done)
                 reward += r
                 step_i += 1
+
+                # 3rd col: step_accum
+                steps_accum.append(step_i)
+
+                # 4th col: rewards
+                rewards.append(reward)
+
+                # last col: gamma
+                gammas.append(fwd_diff_ratio)
+                # print("which_side, ", which_side)
+            
             print("episode reward: ", reward)
+            if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
+                side_val = 1 if info['state'] == 'target' else 0
+                #which_side = [side_val] * len(steps_accum)  # backfill all steps
+                del which_side[-1]
+                which_side.append(side_val)
+
+            # print("which_side, after, ", which_side)
+
+        # save as dataframe, then as csv
+        df = pd.DataFrame({
+            "ep": eps,
+            "which_goal": which_side,
+            "steps_accum": steps_accum,
+            "reward": rewards,
+            "diff": diffs,
+            "raw_input_action_x": raw_input_action_x,
+            "raw_input_action_y": raw_input_action_y,
+            "assisted_action_x": assisted_action_x,
+            "assisted_action_y": assisted_action_y,
+            "gamma": gammas
+        })
+        df.to_csv(csv_full_path, index = False)
+
