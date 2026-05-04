@@ -146,7 +146,7 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
 
         # NOTE: change here 
-        raw_to_which_side = "left"
+        raw_to_which_side = "right"
         subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side
         os.makedirs(subdir_path, exist_ok=True)
 
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         csv_full_path = subdir_path / csv_name
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
-        gif_name = time.strftime(time_rn)+".gif"
+        gif_name = time.strftime(time_rn)+".mp4"
         gif_full_path = subdir_path / gif_name
 
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
         # columns of the csv is as follows: 
         # episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
-        eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []
+        eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []; losses = []
         raw_input_action_x = []; raw_input_action_y = []
         assisted_action_x = []; assisted_action_y = []
         which_side = []
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         frames = []
 
         # load human demonstrator
-        for ep in range(1, 3):
+        for ep in range(1, 101):
             # NOTE: change this number
             ob = env.reset()
             
@@ -269,6 +269,7 @@ if __name__ == '__main__':
                 loss = diffusion.noise_estimation_loss(x_0).item()
                 print("loss, ", loss)
                 loss_log.append(loss) # 5th column: loss
+                losses.append(loss)
 
                 pca = PCA(n_components=2)
 
@@ -418,6 +419,7 @@ if __name__ == '__main__':
             "which_goal": which_side,
             "steps_accum": steps_accum,
             "reward": rewards,
+            "loss": losses, 
             "diff": diffs,
             "raw_input_action_x": raw_input_action_x,
             "raw_input_action_y": raw_input_action_y,
@@ -427,4 +429,4 @@ if __name__ == '__main__':
         })
         df.to_csv(csv_full_path, index = False)
 
-        imageio.mimsave(gif_full_path, frames, fps = 2)
+        imageio.mimsave(gif_full_path, frames, fps = 1) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
