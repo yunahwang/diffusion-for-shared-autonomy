@@ -106,7 +106,7 @@ if __name__ == '__main__':
     no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
     draw_trajs = True
-    fwd_diff_ratio = 1.0 # NOTE - change this and also line 145
+    fwd_diff_ratio = 0.6 # NOTE - change this and also line 145
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         csv_full_path = subdir_path / csv_name
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
-        gif_name = time.strftime(time_rn)+".mp4"
+        gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
         gif_full_path = subdir_path / gif_name
 
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         frames = []
 
         # load human demonstrator
-        for ep in range(1, 101):
+        for ep in range(1, 51):
             # NOTE: change this number
             ob = env.reset()
             
@@ -240,12 +240,12 @@ if __name__ == '__main__':
                 ee_log.append(ee_xy)
 
                 raw_action = actor.act(ob)
-                #print("[before] raw action, ", raw_action, flush=True)
+                print("[before] raw action, ", raw_action, flush=True)
 
                 ob_action_log.append(np.concatenate([ob[:7], raw_action]))
 
                 assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
-                print("assisted_action, ", assisted_action, flush=True)
+                #print("assisted_action, ", assisted_action, flush=True)
 
                 # 6th column: diffs
                 diffs.append(diff)
@@ -267,7 +267,7 @@ if __name__ == '__main__':
                 raw_action_tensor = torch.tensor(raw_action, dtype=torch.float32).unsqueeze(0)  # (1, act_size)
                 x_0 = torch.cat([ob_tensor, raw_action_tensor], dim=-1)
                 loss = diffusion.noise_estimation_loss(x_0).item()
-                print("loss, ", loss)
+                #print("loss, ", loss)
                 loss_log.append(loss) # 5th column: loss
                 losses.append(loss)
 
@@ -322,8 +322,6 @@ if __name__ == '__main__':
                         ax_action.set_xlabel('PC1')
                         ax_action.set_ylabel('PC2')
 
-                        # NOTE: what the above is showing is how when loss big (more red then big; more green then small)
-                        # the 
 
 
                     size = 0.12
@@ -377,17 +375,11 @@ if __name__ == '__main__':
                 eps.append(ep)
 
                 # 2nd col: which_side
-                # NOTE: determine which side did the end effector go into
-                # if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
-                #     side_val = 1 if info['state'] == 'target' else 0
-                #     which_side = [side_val] * len(steps_accum)  # backfill all steps
-                # else:
-                #     which_side.append(np.nan)
 
                 which_side.append(np.nan)
 
-                #ob, r, done, _ = env.step(raw_action)
-                ob, r, done, info = env.step(assisted_action)
+                # ob, r, done, _ = env.step(raw_action)
+                ob, r, done, info = env.step(assisted_action) # NOTE - when 0.0 show raw_action
                 print("done, ", done)
                 reward += r
                 step_i += 1
@@ -402,7 +394,7 @@ if __name__ == '__main__':
                 gammas.append(fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                time.sleep(0.5)
+                time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
             
             print("episode reward: ", reward)
             if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
@@ -429,4 +421,5 @@ if __name__ == '__main__':
         })
         df.to_csv(csv_full_path, index = False)
 
-        imageio.mimsave(gif_full_path, frames, fps = 1) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+        # NOTE
+        imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
