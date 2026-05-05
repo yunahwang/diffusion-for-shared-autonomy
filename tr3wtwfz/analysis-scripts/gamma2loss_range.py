@@ -76,8 +76,8 @@ def plot_combined(ax, left, right):
     from matplotlib.lines import Line2D
     handles, labels = ax.get_legend_handles_labels()
     handles += [
-        Line2D([0], [0], color='steelblue', linewidth=2, label='Matching training data (going right)'),
-        Line2D([0], [0], color='coral',     linewidth=2, label='Diverging training data (going left)'),
+        Line2D([0], [0], color='steelblue', linewidth=2, label='Matching Training Data (Going Right)'),
+        Line2D([0], [0], color='coral',     linewidth=2, label='Diverging Training Data (Going Left)'),
     ]
     ax.legend(handles=handles)
 
@@ -85,7 +85,7 @@ def plot_combined(ax, left, right):
     ax.set_xticklabels(gammas)
     ax.set_xlabel('gamma')
     ax.set_ylabel('loss')
-    ax.set_title('Loss on User Trajectories - Combined')
+    ax.set_title('Loss on User Trajectories - Combined (each n = 50)')
 
 def read_and_plot(path):
 
@@ -123,10 +123,6 @@ def read_and_plot(path):
             print(gamma)
             if gamma not in target:
                 target[gamma] = df["loss"].to_numpy()
-            # else: 
-            #     loss = df["loss"].to_numpy()
-            #     print("loss, ", loss)
-            #     target[gamma].append(loss)
             
             # after first run -- 
             # 0.0/left 0.0/right
@@ -142,8 +138,8 @@ def read_and_plot(path):
 
     # known = user also trying to go to known space which is right goalpost post
     # unknown = user trying to go to unknown space which is left goalpost post
-    plot_loss(ax_known, right, title = "Loss on User Trajectories Matching Training Data (going right)")
-    plot_loss(ax_unknown, left, title = "Loss on User Trajectories Diverging Training Data (going left)")
+    plot_loss(ax_known, right, title = "Loss on User Trajectories Matching Training Data (Going Right); n = 50")
+    plot_loss(ax_unknown, left, title = "Loss on User Trajectories Diverging Training Data (Going Left); n = 50")
     plot_combined(ax_combined, left, right)
 
     plt.tight_layout()
