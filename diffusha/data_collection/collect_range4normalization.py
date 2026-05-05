@@ -31,15 +31,34 @@ print("total samples:", all_obs.shape)
 
 # compute per-key stats
 normalizer_stats = {
-    "block_translation":     {"mean": all_obs[:, 0:2].mean(0), "std": all_obs[:, 0:2].std(0)},
-    "block_orientation":     {"mean": all_obs[:, 2:3].mean(0), "std": all_obs[:, 2:3].std(0)},
-    "ee_translation":        {"mean": all_obs[:, 3:5].mean(0), "std": all_obs[:, 3:5].std(0)},
-    "ee_target_translation": {"mean": all_obs[:, 5:7].mean(0), "std": all_obs[:, 5:7].std(0)},
+    "block_translation":     {
+        "mean": all_obs[:, 0:2].mean(0),
+        "std":  all_obs[:, 0:2].std(0),
+        "min":  all_obs[:, 0:2].min(0),
+        "max":  all_obs[:, 0:2].max(0),
+    },
+    "block_orientation":     {
+        "mean": all_obs[:, 2:3].mean(0),
+        "std":  all_obs[:, 2:3].std(0),
+        "min":  all_obs[:, 2:3].min(0),
+        "max":  all_obs[:, 2:3].max(0),
+    },
+    "ee_translation":        {
+        "mean": all_obs[:, 3:5].mean(0),
+        "std":  all_obs[:, 3:5].std(0),
+        "min":  all_obs[:, 3:5].min(0),
+        "max":  all_obs[:, 3:5].max(0),
+    },
+    "ee_target_translation": {
+        "mean": all_obs[:, 5:7].mean(0),
+        "std":  all_obs[:, 5:7].std(0),
+        "min":  all_obs[:, 5:7].min(0),
+        "max":  all_obs[:, 5:7].max(0),
+    },
 }
 
-# print to verify
 for key, stats in normalizer_stats.items():
-    print(f"{key}: mean={stats['mean']}, std={stats['std']}")
+    print(f"{key}: mean={stats['mean']}, std={stats['std']}, min={stats['min']}, max={stats['max']}")
 
 # save
 with open("normalizer_stats.pkl", "wb") as f:

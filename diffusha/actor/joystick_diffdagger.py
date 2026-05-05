@@ -279,7 +279,7 @@ if __name__ == '__main__':
                 #############################################################
 
                 # USING THE DIFFDAGGER WAY OF CALCULATING NOISE
-                dagger_loss = DaggerLoss(diffusion)
+                dagger_loss = DaggerLoss(diffusion, mode = "limits") # there are two modes - "limits" (-1 ~ 1) and "z_score"
                 diffdagger_loss = dagger_loss(ob.copy()) # TODO: fill this in with the proper function name
                 print("diffdagger_loss tmp - nobs, ", diffdagger_loss)
                 # it looks like this, for example, obs_dict in dagger_loss,  {'state': tensor([ 0.0913, -0.1961,  3.1400,  0.0947, -0.2231,  0.0988, -0.2144])}
