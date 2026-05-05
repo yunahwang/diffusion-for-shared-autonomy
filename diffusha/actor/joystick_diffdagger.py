@@ -31,7 +31,7 @@ from diffusha.actor import Actor
 from diffusha.actor.assistive import DiffusionAssistedActor
 from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
-from diffusha.diffdagger.diffdagger_loss import dagger_loss
+from diffusha.diffdagger.diffdagger_loss import DaggerLoss
 
 #####################################
 # Change these to match your joystick
@@ -279,8 +279,9 @@ if __name__ == '__main__':
                 #############################################################
 
                 # USING THE DIFFDAGGER WAY OF CALCULATING NOISE
+                dagger_loss = DaggerLoss(diffusion)
                 diffdagger_loss = dagger_loss(ob.copy()) # TODO: fill this in with the proper function name
-                print("diffdagger_loss tmp, ", diffdagger_loss)
+                print("diffdagger_loss tmp - nobs, ", diffdagger_loss)
                 # it looks like this, for example, obs_dict in dagger_loss,  {'state': tensor([ 0.0913, -0.1961,  3.1400,  0.0947, -0.2231,  0.0988, -0.2144])}
 
                 pca = PCA(n_components=2)
