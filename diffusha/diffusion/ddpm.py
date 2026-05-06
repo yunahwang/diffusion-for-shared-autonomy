@@ -175,6 +175,8 @@ class DiffusionModel:
         sigma_t = extract(self.betas, t, x).sqrt()
         sample = mean + sigma_t * z
 
+        print("beta, ", self.betas, "sigma_t, ", sigma_t, "mul z, ", sigma_t * z) 
+
         return sample
 
     @torch.no_grad()

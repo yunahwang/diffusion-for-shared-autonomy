@@ -64,7 +64,7 @@ class DiffusionAssistedActor(Actor):
         else:
             x_k, e = self.diffusion.diffuse(state, torch.as_tensor([self._k]))
 
-        #print("x_k after diffuse:", x_k.detach().cpu().numpy(), flush=True)
+        print("x_k after diffuse:", x_k.detach().cpu().numpy(), flush=True)
         
         # Reverse diffuse Tensor([*crisp_obs, *noisy_user_act]) for (diffusion.num_diffusion_steps - k) steps
         obs = torch.as_tensor(obs, dtype=torch.float32)
@@ -75,8 +75,8 @@ class DiffusionAssistedActor(Actor):
             x_i = self.diffusion.p_sample(x_i, i)
             x_i[:, :obs_size] = obs  # Add condition
 
-            # if i in [self._k - 1, max(self._k // 2, 0), 0]:
-            #     print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
+            if i in [self._k - 1, max(self._k // 2, 0), 0]:
+                print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
 
         if not run_in_batch:
             out = x_i.squeeze()  # Remove batch dim
