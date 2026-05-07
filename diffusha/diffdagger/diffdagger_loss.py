@@ -63,25 +63,20 @@ class DaggerLoss:
             normalized.append(self.normalizers[key].normalize(tensor))
         return torch.cat(normalized, dim=-1)
 
-    def compute_loss(self, obs_batch, action_batch, timesteps, noise, mask_batch = None):
+    def compute_loss(self, obs_batch, action_batch, timesteps, mask_batch=None):
         x_0 = torch.cat([obs_batch, action_batch], dim=-1).to(self.device)
         timesteps = timesteps.to(self.device)
-        noise = noise.to(self.device)
         
-        a = extract(self.diffusion.alphas_bar_sqrt, timesteps, x_0)
-        am1 = extract(self.diffusion.one_minus_alphas_bar_sqrt, timesteps, x_0)
-        noisy_x = x_0 * a + noise * am1
+        # mirror training exactly — diffuse generates its own noise internally
+        x_t, e = self.diffusion.diffuse(x_0, timesteps)
         
-        # model predicts the noise
-        output = self.diffusion.model(noisy_x, timesteps)
-        
-        err = noise - output
+        output = self.diffusion.model(x_t, timesteps)
+        err = e - output
         
         if mask_batch is not None:
             err = err * mask_batch
         
         print("ERR, ", err.square().mean())
-        
         return err.square().mean()
 
     @torch.no_grad()
@@ -102,7 +97,7 @@ class DaggerLoss:
                 x_0_repeat = torch.cat([nobs_repeat, naction_repeat], dim=-1)
                 noise = torch.empty_like(x_0_repeat).normal_(0, 1)
                 KLD_LOSS += self.compute_loss(
-                    nobs_repeat, naction_repeat, timesteps, noise
+                    nobs_repeat, naction_repeat, timesteps
                 ).item()
         
         else:
@@ -134,8 +129,8 @@ class DaggerLoss:
         
         diffusion_loss = self.get_avg_diffusion_loss_ndata(nobs, nactions, repeat = True)
 
-        self.diffusion_loss_cdf = CDF(diffusion_losses)
-        self.deque.append(diffusion_loss > self.diffusion_loss_threshold) # TODO - pick it up from here
+        # self.diffusion_loss_cdf = CDF(diffusion_losses)
+        # self.deque.append(diffusion_loss > self.diffusion_loss_threshold) # TODO - pick it up from here
 
 
 
