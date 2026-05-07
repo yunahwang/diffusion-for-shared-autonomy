@@ -3,18 +3,22 @@ import torch
 from pathlib import Path
 import pickle
 from .util import SafeLimitsNormalizer, GaussianNormalizer
+from .cdf import CDF
 from ..diffusion.utils import extract
 
 OBS_KEYS = ["block_translation", "block_orientation", "ee_translation", "ee_target_translation", "action"]
 
 class DaggerLoss:
-    def __init__(self, diffusion, assisted_actor, mode="limits"):
+    def __init__(self, diffusion, assisted_actor, mode="limits", alpha=0.95, patience = 2):
         self.diffusion = diffusion
         self.device = "cpu"
         self.assisted_actor = assisted_actor
         self.mode = mode  # "limits" or "z_score"
 
-        self.patience_window = 2
+        self.patience = patience
+        self.patience_window = patience
+
+        self.alpha = alpha
 
         # load stats once at init
         stats_path = Path(__file__).parents[2] / "normalizer_stats.pkl"
@@ -41,6 +45,12 @@ class DaggerLoss:
                 normalizer.means = torch.tensor(stats["mean"], dtype=torch.float32)
                 normalizer.stds = torch.tensor(stats["std"], dtype=torch.float32).clamp(min=1e-8)
                 self.normalizers[key] = normalizer
+
+        cdf_path = Path(__file__).parents[2] / "diffusion_loss_cdf.pkl"
+        with open(cdf_path, "rb") as f:
+            cdf_data = pickle.load(f)
+        self.diffusion_loss_cdf = CDF(cdf_data["losses"].tolist())
+        self.diffusion_loss_threshold = self.diffusion_loss_cdf.get_quantile(self.alpha)
         
         self.reset()
 
@@ -56,10 +66,12 @@ class DaggerLoss:
         return self.normalizers["action"].normalize(action_tensor)
 
     @torch.no_grad()
-    def normalize_obs(self, obs):
+    def normalize_obs(self, obs_seq):
         normalized = []
         for key in [k for k in OBS_KEYS if k != "action"]:
-            tensor = obs[key].flatten().to(self.device).float()
+            print("obs_seq, ", obs_seq)
+            tensor = obs_seq[key].flatten().to(self.device).float()
+            print("self.normalizers, ", self.normalizers)
             normalized.append(self.normalizers[key].normalize(tensor))
         return torch.cat(normalized, dim=-1)
 
@@ -92,7 +104,7 @@ class DaggerLoss:
             naction_repeat = naction.repeat(self.diffusion.num_diffusion_steps * batch_multiplier, 1, 1,)
             timesteps = (torch.arange(
                 self.diffusion.num_diffusion_steps * batch_multiplier, device = self.device,).long() % self.diffusion.num_diffusion_steps)
-            print("timesteps shape, ", timesteps.shape)
+            #print("timesteps shape, ", timesteps.shape)
             for _ in range(num_per_batch):
                 x_0_repeat = torch.cat([nobs_repeat, naction_repeat], dim=-1)
                 noise = torch.empty_like(x_0_repeat).normal_(0, 1)
@@ -116,22 +128,37 @@ class DaggerLoss:
         return self.normalize_action(obs_seq, obs, raw_action)
 
     @torch.no_grad()
-    def get_action(self, obs_seq, obs, raw_action, initial_noise = None, extra_steps = 0,
+    def get_action_and_loss(self, obs_seq, obs, raw_action, initial_noise = None, extra_steps = 0,
                    dagger = True, return_dict = False, obs_batch_size = 1):
+        
+
         nobs = self.normalize_obs(obs_seq)
         #assert nobs.ndim == 7
         nactions = self.get_naction(obs_seq, obs, nobs, raw_action, initial_noise = initial_noise, extra_steps = extra_steps)
 
-        action = self.assisted_actor._diffusion_cond_sample(obs, raw_action)
+        assist_action = self.assisted_actor._diffusion_cond_sample(obs, raw_action)
 
         if not dagger:
-            return action
+            return assist_action
         
         diffusion_loss = self.get_avg_diffusion_loss_ndata(nobs, nactions, repeat = True)
 
-        # self.diffusion_loss_cdf = CDF(diffusion_losses)
-        # self.deque.append(diffusion_loss > self.diffusion_loss_threshold) # TODO - pick it up from here
+        # TODO - implement patience here - would have to accumulate and then arbitrate changes here
 
+        cdf_value = self.diffusion_loss_cdf(diffusion_loss)
+        is_cdf_value_past_alpha = (cdf_value > self.alpha)
+        self.deque.append(diffusion_loss > self.diffusion_loss_threshold)
+
+
+        if return_dict:
+            return dict(
+                action=assist_action,
+                diffusion_loss=diffusion_loss,
+                diffusion_loss_threshold=self.diffusion_loss_threshold,
+                query=sum(self.deque) >= self.patience,
+            )
+        else:
+            return assist_action, diffusion_loss, self.diffusion_loss_threshold, cdf_value, is_cdf_value_past_alpha
 
 
     def __call__(self, obs, raw_action):
@@ -148,4 +175,4 @@ class DaggerLoss:
             .swapaxes(0, 1).float()
             for key in obs_dict.keys()
         }
-        return self.get_action(obs_seq, obs, raw_action)
+        return self.get_action_and_loss(obs_seq, obs, raw_action)

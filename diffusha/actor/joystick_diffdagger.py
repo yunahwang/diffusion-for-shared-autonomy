@@ -246,6 +246,7 @@ if __name__ == '__main__':
 
                 ob_action_log.append(np.concatenate([ob[:7], raw_action]))
 
+                # TODO - should now arbitrate between different fwd_diff_ratio, so, based on loss quantiles then should i create new assisted actors everytime
                 assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
                 #print("assisted_action, ", assisted_action, flush=True)
 
@@ -279,10 +280,16 @@ if __name__ == '__main__':
                 #############################################################
 
                 # USING THE DIFFDAGGER WAY OF CALCULATING NOISE
-                dagger_loss = DaggerLoss(diffusion, assisted_actor, mode = "limits") # there are two modes - "limits" (-1 ~ 1) and "z_score"
-                diffdagger_loss = dagger_loss(ob.copy(), raw_action) # TODO: fill this in with the proper function name
-                print("diffdagger_loss tmp - nobs, ", diffdagger_loss)
-                # it looks like this, for example, obs_dict in dagger_loss,  {'state': tensor([ 0.0913, -0.1961,  3.1400,  0.0947, -0.2231,  0.0988, -0.2144])}
+                # NOTE: change alpha to determine CDF threshold for diffusion losses
+
+                alpha = 0.99
+                mode = "limits"
+
+                dagger_loss = DaggerLoss(diffusion, assisted_actor, mode, alpha) # there are two modes - "limits" (-1 ~ 1) and "z_score"
+                
+            
+                diffdagger_loss = dagger_loss(ob.copy(), raw_action) 
+                print("diffdagger_loss ", diffdagger_loss)
 
                 pca = PCA(n_components=2)
 
