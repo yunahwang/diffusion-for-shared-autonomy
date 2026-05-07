@@ -1,0 +1,99 @@
+env_id: BlockPushMultimodal-v1
+obs_mode: state
+render_mode: rgb_array
+max_episode_steps: 200
+num_init_ep: 20
+obs_keys:
+- block_translation
+- block_orientation
+- ee_translation
+- ee_target_translation
+proprio_dim: 7
+latent_dim: 0
+action_space: velocity
+action_dim: 2
+device: cpu
+obs_horizon: 1
+pred_horizon: 11
+action_horizon: 1
+prediction_type: epsilon
+dataset_dir: /code/data-dir
+normalizers_path: /code/data-dir/normalizers.pth
+save_file_dir: ${dataset_dir}/results/blockpush_${prediction_type}
+max_train_steps: 30000
+epoch: 300
+train_freq: 4
+wait_timestep: 10
+chkpt_dir: ${save_file_dir}
+dataset:
+  _target_: dataset.blockpush_dataset.BlockPushDataset
+  data_dirs:
+  - /code/data-dir/replay/blockpush/target/randp_0.0
+  - /code/data-dir/replay/blockpush/target-flipped/randp_0.0
+  state_dim: ${proprio_dim}
+  action_dim: ${action_dim}
+  obs_horizon: ${obs_horizon}
+  pred_horizon: ${pred_horizon}
+env:
+  _target_: diffusha.data_collection.env.make_env
+  env_name: ${env_id}
+  seed: 1
+  test: false
+eval_env:
+  _target_: diffusha.data_collection.env.make_env
+  env_name: ${env_id}
+  seed: 42
+  test: true
+policy:
+  _target_: agents.diffusion_policy.DiffDAggerPolicy
+  model:
+    _target_: model.unet1d.ConditionalUnet1D
+    input_dim: ${action_dim}
+    global_cond_dim: null
+    diffusion_step_embed_dim: 256
+    down_dims:
+    - 256
+    - 512
+    - 1024
+    kernel_size: 5
+    n_groups: 8
+  obs_keys: ${obs_keys}
+  proprio_dim: ${proprio_dim}
+  latent_dim: ${latent_dim}
+  action_dim: ${action_dim}
+  action_space: ${action_space}
+  obs_horizon: ${obs_horizon}
+  pred_horizon: ${pred_horizon}
+  vision_model: null
+  frozen_encoder: false
+  obs_encoder_group_norm: true
+  spatial_softmax: false
+  num_inference_steps: 100
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    prediction_type: ${prediction_type}
+  optim:
+    _target_: torch.optim.AdamW
+    lr: 0.0003
+    weight_decay: 0.01
+    betas:
+    - 0.9
+    - 0.99
+  scheduler:
+    _target_: diffusers.optimization.get_scheduler
+    name: cosine
+    num_warmup_steps: 500
+  alpha: 0.99
+  batch_multiplier: 32
+  num_per_batch: 1
+  patience: 2
+  patience_window: ${policy.patience}
+train:
+  accelerator: auto
+  devices: 1
+  train_steps: null
+  train_bs: 64

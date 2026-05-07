@@ -19,15 +19,18 @@ action_dim = 2
 #n_samples = 50000  # how many samples to compute stats from
 
 print(len(data_dirs))
-all_obs = []
+all_obs = []; all_actions = []
 
 for data_dir in data_dirs:
     rb = ReplayBuffer(data_dir, state_dim, action_dim)
     for fname, chunk in rb._file_cache.items():
         all_obs.append(chunk[:, :state_dim])  # just state part, drop action and q_val
+        all_actions.append(chunk[:, state_dim:state_dim + action_dim])
 
 all_obs = np.concatenate(all_obs, axis=0)  # (total_N, 7)
+all_actions = np.concatenate(all_actions, axis = 0)
 print("total samples:", all_obs.shape)
+print("total action samples: ", all_actions.shape)
 
 # compute per-key stats
 normalizer_stats = {
@@ -54,6 +57,12 @@ normalizer_stats = {
         "std":  all_obs[:, 5:7].std(0),
         "min":  all_obs[:, 5:7].min(0),
         "max":  all_obs[:, 5:7].max(0),
+    },
+    "action": {
+        "mean": all_actions.mean(0),
+        "std":  all_actions.std(0),
+        "min":  all_actions.min(0),
+        "max":  all_actions.max(0),
     },
 }
 
