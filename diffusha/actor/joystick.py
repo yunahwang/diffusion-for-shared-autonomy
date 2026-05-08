@@ -106,7 +106,7 @@ if __name__ == '__main__':
     no_assist = False # if False, use DiffusionAssistedActor
     model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
     draw_trajs = True
-    fwd_diff_ratio = 0.6 # NOTE - change this and also line 145
+    fwd_diff_ratio = 0.4 # NOTE - change this and also line 145
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -146,7 +146,7 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
 
         # NOTE: change here 
-        raw_to_which_side = "right"
+        raw_to_which_side = "left"
         subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side
         os.makedirs(subdir_path, exist_ok=True)
 

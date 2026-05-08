@@ -122,6 +122,8 @@ def read_and_plot(path):
             gamma = sub_dir_full_path.parts[3]
             print(gamma)
             if gamma not in target:
+                if gamma == "0.0" and target == left:
+                    break
                 target[gamma] = df["loss"].to_numpy()
             
             # after first run -- 
@@ -145,11 +147,11 @@ def read_and_plot(path):
     plt.tight_layout()
 
     save_path = root_dir / "gamma2loss_range.png"
-    #plt.savefig(save_path, dpi = 150)
+    plt.savefig(save_path, dpi = 150)
     plt.show()
     print(f"saved to {save_path}")
 
 
 if __name__ == '__main__':
-    root_dir = Path(sys.argv[1]) # python gamma2loss_range.py /code/tr3wtwfz/
+    root_dir = Path(sys.argv[1]) #root@67762e0bc982:/code# python tr3wtwfz/analysis-scripts/gamma2loss_range.py /code/tr3wtwfz/
     read_and_plot(root_dir)

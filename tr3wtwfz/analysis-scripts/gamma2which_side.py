@@ -10,6 +10,8 @@ import sys
 
 def plot_count(ax, data_dict, title):
     gammas = sorted(data_dict.keys(), key=float)
+
+    print("gammas, ", gammas)
     x = np.arange(len(gammas))
     width = 0.35
 
@@ -40,8 +42,8 @@ def plot_combined(ax, left, right):
     right_untrained = [right.get(g, {}).get('left_goal(not trained)', 0) for g in gammas]
     right_trained = [right.get(g, {}).get('right_goal(trained)', 0) for g in gammas]
 
-    b1 = ax.bar(x - 1.5*width, left_untrained, width, label='Left (Untrained Goal)', color='coral')
-    b2 = ax.bar(x - 0.5*width, left_trained, width, label='Left Dict / Trained Goal', color='tomato')
+    b1 = ax.bar(x - 1.5*width, left_untrained, width, label='User Going Left + Arriving at Left Goalpost (Untrained Goal)', color='coral')
+    b2 = ax.bar(x - 0.5*width, left_trained, width, label='User Going Left + Arriving at Right Goalpost (Trained Goal)', color='tomato')
     b3 = ax.bar(x + 0.5*width, right_untrained, width, label='User Going Right + Arriving at Left Goalpost (Untrained Goal)', color='steelblue')
     b4 = ax.bar(x + 1.5*width, right_trained, width, label='User Going Right + Arriving at Right Goalpost (Trained Goal)', color='royalblue')
 
@@ -72,32 +74,32 @@ def read_and_plot(path):
         for sub_dir in left_right:
             sub_dir_full_path = numeric_dir_full_path / sub_dir
 
-        if "left" in sub_dir_full_path.name:
-            target = left
-        elif "right" in sub_dir_full_path.name:
-            target = right
+            if "left" in sub_dir_full_path.name:
+                target = left
+            elif "right" in sub_dir_full_path.name:
+                target = right
 
-        csv = [csv for csv in sub_dir_full_path.iterdir() if csv.name.endswith(".csv")][0]
-        csv_full_path = sub_dir_full_path / csv
-        print(csv_full_path)
-        df = pd.read_csv(csv_full_path)
+            csv = [csv for csv in sub_dir_full_path.iterdir() if csv.name.endswith(".csv")][0]
+            csv_full_path = sub_dir_full_path / csv
+            print(csv_full_path)
+            df = pd.read_csv(csv_full_path)
 
-        gamma = sub_dir_full_path.parts[3]
-        print(gamma)
+            gamma = sub_dir_full_path.parts[3]
+            print(gamma)
 
-        left_count = 0
-        right_count = 0
+            left_count = 0
+            right_count = 0
 
-        if gamma not in target:
-            which_goal = df["which_goal"].to_numpy()
-            
-            for goal in which_goal:
-                if goal == 0.0:
-                    left_count += 1
-                elif goal == 1.0:
-                    right_count += 1
+            if gamma not in target:
+                which_goal = df["which_goal"].to_numpy()
                 
-                target[gamma] = {"left_goal(not trained)": left_count, "right_goal(trained)": right_count}
+                for goal in which_goal:
+                    if goal == 0.0:
+                        left_count += 1
+                    elif goal == 1.0:
+                        right_count += 1
+                    
+                    target[gamma] = {"left_goal(not trained)": left_count, "right_goal(trained)": right_count}
 
         
         print("left_count, right_count, ", left_count, right_count)
@@ -118,10 +120,10 @@ def read_and_plot(path):
     plt.tight_layout()
 
     save_path = root_dir / "gamma2which_side.png"
-    #plt.savefig(save_path, dpi = 150)
+    plt.savefig(save_path, dpi = 150)
     plt.show()
     print(f"saved to {save_path}")
 
 if __name__ == "__main__":
-    root_dir = Path(sys.argv[1]) # python gamma2which_side.py /code/tr3wtwfz/
+    root_dir = Path(sys.argv[1]) # root@67762e0bc982:/code# python tr3wtwfz/analysis-scripts/gamma2which_side.py /code/tr3wtwfz/
     read_and_plot(root_dir)
