@@ -77,8 +77,8 @@ def get_datadir(env_name, randp):
     elif "BlockPushMultimodal" in env_name:
         data_dir = [
             f"{Args.blockpush_data_dir}/{target}/randp_{randp:.1f}"
-            for target in ["target", "target-flipped"]
-            #for target in ["target"]
+            #for target in ["target", "target-flipped"]
+            for target in ["target"]
         ]
         assert (
             randp != 0.6
@@ -112,6 +112,7 @@ def main():
     # Optionally read from Args.dataset_envs
     # - Args.randp: the probability of a user surrogate to choose a random action
     if Args.dataset_envs is None:
+        print("this branch")
         data_dir = get_datadir(Args.env_name, Args.randp)
     else:
         data_dir = [get_datadir(env_name, Args.randp) for env_name in Args.dataset_envs]
@@ -181,17 +182,20 @@ if __name__ == "__main__":
     # Obtain kwargs from Sweep and update hyperparameters accordingly
     sweep = Sweep(Args).load(args.sweep_file)
     kwargs = list(sweep)[args.line_number]
+    print("kwargs, ", kwargs)
     Args._update(kwargs)
 
     sweep_basename = Path(args.sweep_file).stem
+    print("sweep_basename, ", sweep_basename)
 
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project="diffusha",
+        project="target-only-2026-300",
         group=f"training-{sweep_basename}",
         config=vars(Args),
-        mode="offline"
+        #mode="offline"
+        mode="online"
     )
     main()
     wandb.finish()

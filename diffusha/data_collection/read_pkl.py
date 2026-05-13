@@ -17,7 +17,7 @@ def read_pkl(path):
 
 if __name__ == '__main__':
     path = Path(sys.argv[1])
-    csv_dir = Path(__file__).parent / "2026_csv_backup"
+    csv_dir = Path(__file__).parent / "orig_2023_csv_backup"
     os.makedirs(csv_dir, exist_ok=True)
 
     if path.is_dir():
@@ -34,5 +34,5 @@ if __name__ == '__main__':
         data = read_pkl(path)
         df = pd.DataFrame(data)
         csv_path = csv_dir / path.with_suffix(".csv").name
-        df.to_csv(csv_path, index=False)
+        #df.to_csv(csv_path, index=False)
         print(f"Saved to {csv_path}")
