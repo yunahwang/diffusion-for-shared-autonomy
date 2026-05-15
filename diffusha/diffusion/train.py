@@ -191,7 +191,7 @@ if __name__ == "__main__":
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project="target-only-2026-300",
+        project="target-only-2023-100-0.4dargs-sanity",
         group=f"training-{sweep_basename}",
         config=vars(Args),
         #mode="offline"

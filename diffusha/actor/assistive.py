@@ -75,8 +75,8 @@ class DiffusionAssistedActor(Actor):
             x_i = self.diffusion.p_sample(x_i, i)
             x_i[:, :obs_size] = obs  # Add condition
 
-            if i in [self._k - 1, max(self._k // 2, 0), 0]:
-                print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
+            # if i in [self._k - 1, max(self._k // 2, 0), 0]:
+            #     print(f"x_i at step {i}:", x_i.detach().cpu().numpy(), flush=True)
 
         if not run_in_batch:
             out = x_i.squeeze()  # Remove batch dim

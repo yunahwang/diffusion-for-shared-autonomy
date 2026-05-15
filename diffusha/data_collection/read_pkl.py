@@ -17,7 +17,7 @@ def read_pkl(path):
 
 if __name__ == '__main__':
     path = Path(sys.argv[1])
-    csv_dir = Path(__file__).parent / "orig_2023_csv_backup"
+    csv_dir = Path(__file__).parent / "target-flipped"
     os.makedirs(csv_dir, exist_ok=True)
 
     if path.is_dir():

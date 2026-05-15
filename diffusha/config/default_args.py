@@ -31,7 +31,7 @@ class Args(ParamsProto):
     seed = 0
 
     # Used in evaluation
-    fwd_diff_ratio = 0.2 # trying 0.1, 0.4 (default), and 0.8
+    fwd_diff_ratio = 0.4 # trying 0.1, 0.4 (default), and 0.8
     laggy_actor_repeat_prob = 0.8
     noisy_actor_eps = 0.8
 
