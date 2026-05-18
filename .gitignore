@@ -22,4 +22,4 @@ outputs/*
 DiffDAgger/*
 DiffDAgger/
 .csv#
-DiffDAgger/
+diffusha/data_collection/*.csv

@@ -2,29 +2,63 @@ from pathlib import Path
 import sys
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+matplotlib.set_loglevel("critical")
 import matplotlib.pyplot as plt
 
 
-# def plot_path(path, zoom_endpoints_only = False, no_plot_ee_end = False):
-#     csvs = [entry.name for entry in path.iterdir() if entry.name.endswith(".csv")]
+# ee version - one plot per csv (ignored multiple episodes inside csv)
+# def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False):
+#     csvs = sorted([entry.name for entry in path.iterdir() if entry.name.endswith(".csv")])
+
+#     coord_offset = np.array([0.4, 0.35])
+
 #     plt.figure()
+
 #     for i, csv in enumerate(csvs):
 #         print("i, ", i)
+
 #         full_csv_path = path / csv
 #         df = pd.read_csv(full_csv_path, header=None)
-#         ee_x = df.iloc[:, 3]
-#         ee_y = df.iloc[:, 4]
-#         start_x = df.iloc[0, 3];  start_y = df.iloc[0, 4]
-#         end_x = df.iloc[-1, 3];   end_y   = df.iloc[-1, 4]
-#         label_traj  = "ee_pos"       if i == 0 else None
+
+#         ee_centered = df.iloc[:, [3, 4]].to_numpy(dtype=float)
+
+#         # Same mapping as PyBullet replay:
+#         # world_x = -centered_x + 0.4
+#         # world_y =  centered_y + 0.35
+#         ee_world = np.column_stack([
+#             -ee_centered[:, 0],
+#              ee_centered[:, 1],
+#         ]) + coord_offset
+
+#         ee_x = ee_world[:, 0]
+#         ee_y = ee_world[:, 1]
+
+#         start_x, start_y = ee_world[0]
+#         end_x, end_y = ee_world[-1]
+
+#         label_traj = "ee_pos" if i == 0 else None
 #         label_start = "ee_start_pos" if i == 0 else None
-#         label_end   = "ee_end_pos"   if i == 0 else None
+#         label_end = "ee_end_pos" if i == 0 else None
+
 #         if not zoom_endpoints_only:
-#             plt.plot(ee_x, ee_y, color="blue", lw=0.01, label=label_traj)
+#             plt.plot(ee_x, ee_y, color="blue", lw=0.01, alpha=0.25, label=label_traj)
+
 #         plt.scatter(start_x, start_y, c="green", s=30, label=label_start)
-        
+
 #         if not no_plot_ee_end:
-#             plt.scatter(end_x,   end_y,   c="red",   s=120, marker = "*", edgecolors = "black", linewidths=0.5, label=label_end)
+#             plt.scatter(
+#                 end_x,
+#                 end_y,
+#                 c="peachpuff",
+#                 s=120,
+#                 marker="v",
+#                 edgecolors="black",
+#                 linewidths=0.5,
+#                 label=label_end,
+#             )
+
 
 #     plt.xlabel("X")
 #     plt.ylabel("Y")
@@ -33,96 +67,58 @@ import matplotlib.pyplot as plt
 #     plt.axis("equal")
 #     plt.grid(True)
 #     plt.show()
+
 #     print("Saved plot to 2023_ee_traj.png")
 
 def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False):
     csvs = sorted([entry.name for entry in path.iterdir() if entry.name.endswith(".csv")])
-
     coord_offset = np.array([0.4, 0.35])
 
-    # world_targets = {
-    #     "green/right target": np.array([0.3, 0.35]),
-    #     "red/left target": np.array([0.5, 0.35]),
-    # }
-
-    plt.figure()
-
     for i, csv in enumerate(csvs):
-        print("i, ", i)
-
+        # if i % 3 == 0 and i > 0:
+        #     break
+        if i % 5 == 0:
+            print(f"going through {i}th file out of {len(csvs)} in total")
+        print("csv, ", csv)
         full_csv_path = path / csv
-        df = pd.read_csv(full_csv_path, header=None)
+        df = pd.read_csv(full_csv_path, header=0)
 
-        ee_centered = df.iloc[:, [3, 4]].to_numpy(dtype=float)
+        plt.figure()  # ← ONE figure per csv, outside the episode loop
 
-        # Same mapping as PyBullet replay:
-        # world_x = -centered_x + 0.4
-        # world_y =  centered_y + 0.35
-        ee_world = np.column_stack([
-            -ee_centered[:, 0],
-             ee_centered[:, 1],
-        ]) + coord_offset
+        for ep_id, ep_df in df.groupby("episode"):
+            block_centered = ep_df[["block_x", "block_y"]].to_numpy(dtype=float)
+            block_world = np.column_stack([
+                -block_centered[:, 0],
+                block_centered[:, 1],
+            ]) + coord_offset
 
-        ee_x = ee_world[:, 0]
-        ee_y = ee_world[:, 1]
+            blk_x = block_world[:, 0]
+            blk_y = block_world[:, 1]
+            start_x, start_y = block_world[0]
+            end_x,   end_y   = block_world[-1]
 
-        start_x, start_y = ee_world[0]
-        end_x, end_y = ee_world[-1]
+            if not zoom_endpoints_only:
+                plt.plot(blk_x, blk_y, color="blue", lw=0.01, alpha=0.7)
+            plt.scatter(start_x, start_y, c="green", s=0.02)
+            if not no_plot_ee_end:
+                plt.scatter(end_x, end_y, c="peachpuff", s=0.02, marker="v",
+                            edgecolors="black", linewidths=0.5)
 
-        label_traj = "ee_pos" if i == 0 else None
-        label_start = "ee_start_pos" if i == 0 else None
-        label_end = "ee_end_pos" if i == 0 else None
+        # labels for legend (just once, after the loop)
+        plt.scatter([], [], c="green", s=0.02, label="block_start")
+        plt.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
 
-        if not zoom_endpoints_only:
-            plt.plot(ee_x, ee_y, color="blue", lw=0.01, alpha=0.25, label=label_traj)
-
-        plt.scatter(start_x, start_y, c="green", s=30, label=label_start)
-
-        if not no_plot_ee_end:
-            plt.scatter(
-                end_x,
-                end_y,
-                c="peachpuff",
-                s=120,
-                marker="v",
-                edgecolors="black",
-                linewidths=0.5,
-                label=label_end,
-            )
-
-    # Plot fixed world target locations
-    # plt.scatter(
-    #     world_targets["green/right target"][0],
-    #     world_targets["green/right target"][1],
-    #     c="green",
-    #     s=150,
-    #     marker="s",
-    #     edgecolors="black",
-    #     linewidths=0.5,
-    #     label="green/right target",
-    # )
-
-    # plt.scatter(
-    #     world_targets["red/left target"][0],
-    #     world_targets["red/left target"][1],
-    #     c="red",
-    #     s=150,
-    #     marker="s",
-    #     edgecolors="black",
-    #     linewidths=0.5,
-    #     label="red/left target",
-    # )
-
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.title("Trajectory Comparison")
-    plt.legend()
-    plt.axis("equal")
-    plt.grid(True)
-    plt.show()
-
-    print("Saved plot to 2023_ee_traj.png")
-
+        ax = plt.gca()
+        # ax.set_xlim(0.4, 0.6)
+        # ax.set_ylim(-0.3, 0.3)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
+        ax.tick_params(axis='both', labelsize=4)
+        plt.xticks(rotation=90)
+        plt.legend()
+        out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
+        plt.savefig(out_path, dpi=150)
+        plt.close()
 
 
 def plot_two_paths(path1, path2, zoom_endpoints_only=False, no_plot_ee_end = False):
@@ -182,4 +178,4 @@ if __name__ == '__main__':
     if path2 is not None:
         plot_two_paths(path1, path2, zoom_endpoints_only= True)
     else:
-        plot_path(path1, zoom_endpoints_only = True)
+        plot_path(path1)
