@@ -551,7 +551,7 @@ if __name__ == "__main__":
     
     #histogram_ood(ood_loss_csv_path) # this is the ood 
 
-    histogram_overlap(train_losses, ood_losses)
+    #histogram_overlap(train_losses, ood_losses)
 
     # now plot these rep_states -- ood states on an existing, in-distribution trajectory
     training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
