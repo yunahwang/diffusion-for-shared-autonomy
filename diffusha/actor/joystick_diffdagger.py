@@ -148,8 +148,10 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
-        raw_to_which_side = "right"
-        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side
+        raw_to_which_side = "left"
+        trial_num = 1
+
+        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / "trial_" + str(trial_num)
         os.makedirs(subdir_path, exist_ok=True)
 
         time_rn = "%Y%m%d-%H%M%S"
@@ -157,10 +159,6 @@ if __name__ == '__main__':
         csv_name = time.strftime(time_rn)+".csv"
         csv_full_path = subdir_path / csv_name
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
-
-        gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
-        gif_full_path = subdir_path / gif_name
-
 
         laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
 
@@ -208,12 +206,21 @@ if __name__ == '__main__':
         assisted_action_x = []; assisted_action_y = []
         which_side = []
 
-        # save as gif
-        frames = []
+        # # save as gif
+        # frames = []
+
+        ax_loss_r = None
+        episode_losses=[]
 
         # load human demonstrator
-        for ep in range(1, 51):
+        for ep in range(1, 4):
             # NOTE: change this number
+
+            if draw_trajs:
+                #gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
+                gif_name = "episode_" + str(ep) + ".gif"
+                gif_full_path = subdir_path / gif_name
+
             ob = env.reset()
             
             done = False
@@ -226,6 +233,8 @@ if __name__ == '__main__':
             loss_log = []
             ob_log = []
             ob_action_log = []
+
+            frames = []
 
             traj_ids     = {"raw": [], "assisted": []}
 
@@ -262,17 +271,7 @@ if __name__ == '__main__':
                 assisted_action_x.append(assisted_action.copy()[0])
                 assisted_action_y.append(assisted_action.copy()[1])
 
-
-                # [OLD] USING THE DIFFDAGGER WAY OF CALCULATING NOISE
-                # NOTE: change alpha to determine CDF threshold for diffusion losses
-
-                # alpha = 0.99
-                # mode = "limits"
-
-                # dagger_loss = DaggerLoss(diffusion, assisted_actor, mode, alpha) # there are two modes - "limits" (-1 ~ 1) and "z_score"
-                # diffdagger_loss = dagger_loss(ob.copy(), raw_action) 
-                # print("diffdagger_loss ", diffdagger_loss)
-
+                # Call diffdagger loss
                 # Build x_0_single from current ob and raw_action
                 ob_tensor     = torch.tensor(ob.copy(), dtype=torch.float32).unsqueeze(0)   # (1, 7)
                 action_tensor = torch.tensor(raw_action,  dtype=torch.float32).unsqueeze(0) # (1, 2)
@@ -281,17 +280,43 @@ if __name__ == '__main__':
                 nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
                 print("nb_loss", nb_loss)
                 loss_log.append(nb_loss)
-
+                losses.append(nb_loss)
 
                 if draw_trajs:
                     ax.clear()
 
                     ax_loss.clear()
+
+                    ####################################
+                    if ax_loss_r is not None:
+                        ax_loss_r.remove()
+
                     ax_loss.plot(loss_log, 'purple', linewidth=2)
+                    ax_loss.set_xlim(0,100)
                     ax_loss.set_title('noise estimation loss')
                     #ax_loss.set_xlabel('step')
                     ax_loss.set_ylabel('loss')
 
+                    # Quantile reference lines
+                    quantiles = {
+                        # 'p25': 0.0204,
+                        # 'p50': 0.0378,
+                        'p75': 0.0744,
+                        'p99': 0.3233,
+                    }
+                    for label, val in quantiles.items():
+                        ax_loss.axhline(y=val, color='blue', linestyle=':', linewidth=0.8, label=f'train {label}={val:.4f}')
+                        # ax_loss.text(len(loss_log) * 0.01, val, label, color='blue', fontsize=7, va='bottom')
+
+                    ax_loss_r = ax_loss.twinx()
+                    ax_loss_r.set_ylim(ax_loss.get_ylim())
+                    ax_loss_r.set_yticks(list(quantiles.values()))
+                    #ax_loss_r.set_yticklabels(list(quantiles.keys()), color='blue', fontsize=6)
+                    ax_loss_r.tick_params(axis='y', length=0)
+
+                    ax_loss.legend(fontsize=7, loc='upper right')
+
+                    ####################
                     size = 0.12
                     half = size / 2
 
@@ -339,6 +364,9 @@ if __name__ == '__main__':
                     frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
                     frames.append(frame)
 
+                    # NOTE
+                    imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+
                 # 1st col: episode
                 eps.append(ep)
 
@@ -362,8 +390,10 @@ if __name__ == '__main__':
                 gammas.append(fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
+                #time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
             
+            episode_losses.append(loss_log.copy())
+
             print("episode reward: ", reward)
             if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
                 side_val = 1 if info['state'] == 'target' else 0
@@ -385,9 +415,8 @@ if __name__ == '__main__':
             "raw_input_action_y": raw_input_action_y,
             "assisted_action_x": assisted_action_x,
             "assisted_action_y": assisted_action_y,
-            "gamma": gammas
-        })
-        #df.to_csv(csv_full_path, index = False)
+            "gamma": gammas,
 
-        # NOTE
-        #imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+        })
+        df.to_csv(csv_full_path, index = False)
+
