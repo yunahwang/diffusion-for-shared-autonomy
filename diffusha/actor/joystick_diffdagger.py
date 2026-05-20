@@ -32,7 +32,8 @@ from diffusha.actor import Actor
 from diffusha.actor.assistive import DiffusionAssistedActor
 from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
-from diffusha.diffdagger.diffdagger_loss import DaggerLoss
+# from diffusha.diffdagger.diffdagger_loss import DaggerLoss
+from diffusha.actor.loss_dist_ood import noise_estimation_loss_nb_infer
 
 #####################################
 # Change these to match your joystick
@@ -43,7 +44,6 @@ np.set_printoptions(precision=12, suppress=False)
 
 class JoystickDiffDaggerActor(Actor):
     """Joystick Controller for Block Pushing."""
-    """Joystick Controller for Lunar Lander.""" # was
 
     def __init__(self, env, fps=50):
         """Init."""
@@ -107,9 +107,9 @@ if __name__ == '__main__':
 
     
     no_assist = False # if False, use DiffusionAssistedActor
-    model_id = "xpmbcyvo" # if gamma 0.4 "xpmbcyvo", gamma 0.1 "2sl9lz97", gamma 0.8 "lnxdni8n"
+
     draw_trajs = True
-    fwd_diff_ratio = 0.6 # NOTE - change this and also line 145
+    fwd_diff_ratio = 0.0 # NOTE - change this and also line 145
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -144,9 +144,6 @@ if __name__ == '__main__':
         with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
             env2config = json.load(f)
 
-        #model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
-        
-        # model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
 
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
@@ -265,31 +262,25 @@ if __name__ == '__main__':
                 assisted_action_x.append(assisted_action.copy()[0])
                 assisted_action_y.append(assisted_action.copy()[1])
 
-                #############################################################
 
-                # THE FOLLOWING IS USING AS-IS NOISE_ESTIMATION LOSS (from the `to-the-noise-and-back-paper`)
-                # # get diffusion reconstruction loss
-                # ob_tensor = torch.tensor(ob, dtype=torch.float32).unsqueeze(0)  # (1, obs_size)
-                # raw_action_tensor = torch.tensor(raw_action, dtype=torch.float32).unsqueeze(0)  # (1, act_size)
-                # x_0 = torch.cat([ob_tensor, raw_action_tensor], dim=-1)
-                # loss = diffusion.noise_estimation_loss(x_0).item()
-                # #print("loss, ", loss)
-                # loss_log.append(loss) # 5th column: loss
-                # losses.append(loss)
-
-                #############################################################
-
-                # USING THE DIFFDAGGER WAY OF CALCULATING NOISE
+                # [OLD] USING THE DIFFDAGGER WAY OF CALCULATING NOISE
                 # NOTE: change alpha to determine CDF threshold for diffusion losses
 
-                alpha = 0.99
-                mode = "limits"
+                # alpha = 0.99
+                # mode = "limits"
 
-                dagger_loss = DaggerLoss(diffusion, assisted_actor, mode, alpha) # there are two modes - "limits" (-1 ~ 1) and "z_score"
-                
-            
-                diffdagger_loss = dagger_loss(ob.copy(), raw_action) 
-                print("diffdagger_loss ", diffdagger_loss)
+                # dagger_loss = DaggerLoss(diffusion, assisted_actor, mode, alpha) # there are two modes - "limits" (-1 ~ 1) and "z_score"
+                # diffdagger_loss = dagger_loss(ob.copy(), raw_action) 
+                # print("diffdagger_loss ", diffdagger_loss)
+
+                # Build x_0_single from current ob and raw_action
+                ob_tensor     = torch.tensor(ob.copy(), dtype=torch.float32).unsqueeze(0)   # (1, 7)
+                action_tensor = torch.tensor(raw_action,  dtype=torch.float32).unsqueeze(0) # (1, 2)
+                x_0_single    = torch.cat([ob_tensor, action_tensor], dim=-1)               # (1, 9)
+
+                nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
+                print("nb_loss", nb_loss)
+                loss_log.append(nb_loss)
 
 
                 if draw_trajs:
@@ -357,7 +348,7 @@ if __name__ == '__main__':
 
                 # ob, r, done, _ = env.step(raw_action)
                 ob, r, done, info = env.step(assisted_action) # NOTE - when 0.0 show raw_action
-                print("done, ", done)
+                #print("done, ", done)
                 reward += r
                 step_i += 1
 
@@ -396,7 +387,7 @@ if __name__ == '__main__':
             "assisted_action_y": assisted_action_y,
             "gamma": gammas
         })
-        df.to_csv(csv_full_path, index = False)
+        #df.to_csv(csv_full_path, index = False)
 
         # NOTE
-        imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+        #imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 

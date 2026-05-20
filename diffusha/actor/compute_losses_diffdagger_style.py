@@ -47,68 +47,8 @@ def _append_to_csv(t, e, output, err, path=CSV_PATH):
             )
             writer.writerow(row)
 
-def noise_estimation_loss_nb(
-    diffusion: DiffusionModel, x_0_single: torch.Tensor, Nb: int = 512, cond_dim: int = 0
-) -> float:
-    """
-    x_0_single: shape (1, 9) — a single (obs, action) pair
-    samples Nb different (epsilon, t) pairs and returns the averaged loss
-    """
-    # repeat the same sample Nb times
-    x_0 = x_0_single.repeat(Nb, 1)  # (Nb, 9)
-    batch_size = x_0.shape[0]       # Nb
-    # print("batch_size, ", batch_size)
 
-    # sample Nb different timesteps symmetrically
-    t = torch.randint(0, diffusion.num_diffusion_steps, size=(batch_size // 2 + 1,))
-    t = torch.cat([t, diffusion.num_diffusion_steps - t - 1], dim=0)[:batch_size].long()
-    # print("length of t, ", len(t)) # NOTE: expect Nb
-    t = t.to(diffusion.device)
-
-    # sample Nb different noise vectors via diffuse
-    x_t, e = diffusion.diffusion_core.diffuse(diffusion, x_0, t, cond_dim=cond_dim)  # each row gets different ε
-
-    # print("length of x_t, ", len(x_t), " length of e, ", len(e)) # NOTE: expect Nb
-    # print("t, e, ", (t,e))
-
-    with torch.no_grad():
-        output = diffusion.model(x_t, t)
-
-    err = e - output # original diffdagger uses v-prediction but we are not retraining but honestly doesn't matter because
-    # paper says they did it for faster convergence, and as long as i am consistent with this, the magnitude
-    # doesn't matter but just the relative magnitude it sits in
-    # print("err, ", err)
-
-    #_append_to_csv(t, e, output, err)
-    
-    return err.square().mean().item()  # average over Nb samples → one scalar
-    # original paper also uses MSE!
-
-# def compute_loss_512_repeat(diffusion, train_csv_folder, Nb = 512):
-#     states = []; losses = []
-
-#     for i, csv_file in enumerate(sorted(Path(train_csv_folder).glob("*.csv"))):
-
-#         if i % 1 == 0:
-#             print(f"going through {i}-th training csv file")
-
-#         df = pd.read_csv(csv_file)
-#         per_file_states = []
-#         for row in df.itertuples(index = False):
-#             state = list(row)[0:9]
-#             per_file_states.append(state)
-#             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # (1, 9)
-#             with torch.no_grad():
-#                 loss = noise_estimation_loss_nb(diffusion, state_tensor, Nb) # this is average
-#                 #print(loss)
-#                 losses.append(loss)
-#             #break
-#         #break
-#         states.append(per_file_states)
-
-#     return states, losses
-
-def compute_loss_512_repeat(diffusion, train_csv_folder, Nb=512):
+def compute_train_loss_512_repeat(diffusion, train_csv_folder, Nb=512):
     import time
     states = []; losses = []
 
@@ -226,37 +166,14 @@ if __name__ == '__main__':
     if "2023" in which_ckpt.name:
         train_csv_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
 
-    elif "2026" in which_ckpt.name:
-        train_csv_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "all_2026_target" / "2026_csv_backup"
-
-    states, losses = compute_loss_512_repeat(diffusion, train_csv_folder)    
+    states, losses = compute_train_loss_512_repeat(diffusion, train_csv_folder)    
 
     summarize_losses(losses, title="Train Loss Distribution (Nb=512)")
     
-    # with 512 batch but with no conditioning (false)
-    # 2023 version
-    # === Train Loss Distribution (Nb=512) ===
-    # n samples : 1000000
-    # min       : 7.7711
-    # p25       : 20.3984
-    # p50       : 23.1575
-    # p75       : 26.1879
-    # p99       : 34.9625
-    # max       : 56.1005
-
-    # === Train Loss Distribution (Nb=512) ===
-    # n samples : 3000000
-    # min       : 8.2683
-    # p25       : 17.9232
-    # p50       : 20.0263
-    # p75       : 22.1886
-    # p99       : 27.8898
-    # max       : 37.5525
-
 
 
     losses_csv_path = "2023-100-losses_1909.csv" # NOTE - move later
-    pd.DataFrame({"loss": losses}).to_csv(losses_csv_path, index=False)
+    #pd.DataFrame({"loss": losses}).to_csv(losses_csv_path, index=False)
     print(f"saved to {losses_csv_path}")
 
 
