@@ -11,7 +11,7 @@ import torch
 import imageio
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
@@ -35,8 +35,8 @@ from diffusha.diffdagger.diffdagger_loss import DaggerLoss
 
 #####################################
 # Change these to match your joystick
-UP_AXIS = 3  # AKA ；up(negative) and down(positive)
-SIDE_AXIS = 2  # AKA ；left and right
+UP_AXIS = 4  # AKA ；up(negative) and down(positive)
+SIDE_AXIS = 3  # AKA ；left and right
 #####################################
 np.set_printoptions(precision=12, suppress=False)
 
@@ -73,11 +73,11 @@ class JoystickDiffDaggerActor(Actor):
 
                 if event.axis == UP_AXIS:
                     print("up/down")
-                    self.human_agent_action[0] = -1 * v
+                    self.human_agent_action[1] = -1 * v
 
                 elif event.axis == SIDE_AXIS:
                     print("left/right")
-                    self.human_agent_action[1] = v
+                    self.human_agent_action[0] = v
 
         return self.human_agent_action
 

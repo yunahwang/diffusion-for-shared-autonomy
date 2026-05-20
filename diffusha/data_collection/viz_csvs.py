@@ -70,20 +70,20 @@ import matplotlib.pyplot as plt
 
 #     print("Saved plot to 2023_ee_traj.png")
 
-def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False):
+def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_png=True, return_option=False):
     csvs = sorted([entry.name for entry in path.iterdir() if entry.name.endswith(".csv")])
     coord_offset = np.array([0.4, 0.35])
+    
+    fig, ax = plt.subplots()
 
     for i, csv in enumerate(csvs):
-        # if i % 3 == 0 and i > 0:
-        #     break
         if i % 5 == 0:
             print(f"going through {i}th file out of {len(csvs)} in total")
         print("csv, ", csv)
         full_csv_path = path / csv
         df = pd.read_csv(full_csv_path, header=0)
 
-        plt.figure()  # ← ONE figure per csv, outside the episode loop
+        #plt.figure()  # ← ONE figure per csv, outside the episode loop
 
         for ep_id, ep_df in df.groupby("episode"):
             block_centered = ep_df[["block_x", "block_y"]].to_numpy(dtype=float)
@@ -98,27 +98,30 @@ def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False):
             end_x,   end_y   = block_world[-1]
 
             if not zoom_endpoints_only:
-                plt.plot(blk_x, blk_y, color="blue", lw=0.01, alpha=0.7)
-            plt.scatter(start_x, start_y, c="green", s=0.02)
+                ax.plot(blk_x, blk_y, color="blue", lw=0.01, alpha=0.7)
+            ax.scatter(start_x, start_y, c="green", s=0.02)
             if not no_plot_ee_end:
-                plt.scatter(end_x, end_y, c="peachpuff", s=0.02, marker="v",
+                ax.scatter(end_x, end_y, c="peachpuff", s=0.02, marker="v",
                             edgecolors="black", linewidths=0.5)
 
         # labels for legend (just once, after the loop)
-        plt.scatter([], [], c="green", s=0.02, label="block_start")
-        plt.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
+        ax.scatter([], [], c="green", s=0.02, label="block_start")
+        ax.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
 
         ax = plt.gca()
         # ax.set_xlim(0.4, 0.6)
         # ax.set_ylim(-0.3, 0.3)
-        ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
-        ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
-        ax.tick_params(axis='both', labelsize=4)
-        plt.xticks(rotation=90)
-        plt.legend()
-        out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
-        plt.savefig(out_path, dpi=150)
-        plt.close()
+        # ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
+        # ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
+        # ax.tick_params(axis='both', labelsize=4)
+        # plt.xticks(rotation=90)
+        # plt.legend()
+        # out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
+        # plt.savefig(out_path, dpi=150)
+        if not return_option:
+            plt.close()
+
+    return fig, ax
 
 
 def plot_two_paths(path1, path2, zoom_endpoints_only=False, no_plot_ee_end = False):

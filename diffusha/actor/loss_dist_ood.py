@@ -11,12 +11,13 @@ import pandas as pd
 import json
 import numpy as np
 import sys
-import torch
+# import torch
 from pathlib import Path
+import matplotlib
+matplotlib.use('Agg')  # must be before importing pyplot
 import matplotlib.pyplot as plt
 
-from diffusha.diffusion.evaluation.helper import prepare_diffusha
-from diffusha.data_collection.viz_csvs import *
+# from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
 #from diffusha.actor.compute_losses_diffdagger_style import noise_estimation_loss_nb
 
@@ -192,6 +193,7 @@ def quantile_analysis(losses, all_losses, ood_states):
 #     #plt.show()
 
 def plot_ood_on_train_traj(rep_states, path1, path2=None):
+    from diffusha.data_collection.viz_csvs import plot_path, plot_two_paths
     from matplotlib.patches import Rectangle
 
     def obs_xy_to_plot_xy(x, y):
@@ -203,7 +205,7 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
     def obs_action_to_plot_vec(ax_, ay_):
         # Same x flip as positions, no offset for vectors
         return np.array([
-            -ax_,
+            ax_,
              ay_,
         ])
 
@@ -221,7 +223,7 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
             )
         )
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    #fig, ax = plt.subplots(figsize=(8, 6))
 
     if path2 is not None:
         plot_two_paths(
@@ -232,12 +234,14 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
         )
         ax = plt.gca()
     else:
-        plot_path(
+        fig, ax = plot_path(
             path1,
             zoom_endpoints_only=False,
             no_plot_ee_end=True,
+            # use_saved_png = True
+            return_option = True
         )
-        ax = plt.gca()
+        #ax = plt.gca()
 
     # ------------------------------------------------------------
     # Draw target boxes
@@ -245,10 +249,10 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
     # Start with actual env-inspired positions, but adjust if needed.
     # Green is placed over/near the blue clump.
     # Red is slightly to the +x side from viewer perspective here.
-    green_center = np.array([0.50, 0.12])
-    red_center   = np.array([0.86, 0.12])
+    green_center = np.array([0.50, 0.3])
+    red_center   = np.array([0.30, 0.3])
 
-    target_size = 0.16
+    target_size = 0.02
 
     draw_target_box(
         ax,
@@ -276,44 +280,78 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
         "p99": "red",
     }
 
-    arrow_scale = 0.2
+    arrow_scale = 0.1
 
     for key, val in rep_states.items():
         s = val["state"]
 
+        # end effector and action extraction
         ee_x, ee_y = s[3], s[4]
         act_x, act_y = s[7], s[8]
 
         star_xy = obs_xy_to_plot_xy(ee_x, ee_y)
         action_vec = obs_action_to_plot_vec(act_x, act_y)
 
+        # ax.scatter(
+        #     star_xy[0],
+        #     star_xy[1],
+        #     c=colors[key],
+        #     s=80,
+        #     marker="*",
+        #     edgecolors="black",
+        #     linewidths=0.8,
+        #     label=f"{key} of ee pos (loss={val['loss']:.3f})",
+        #     zorder=8,
+        # )
+
+        # ax.arrow(
+        #     star_xy[0],
+        #     star_xy[1],
+        #     arrow_scale * action_vec[0],
+        #     arrow_scale * action_vec[1],
+        #     color=colors[key],
+        #     width=0.006,
+        #     head_width=0.045,
+        #     head_length=0.055,
+        #     length_includes_head=True,
+        #     alpha=0.9,
+        #     zorder=9,
+        # )
+
+        # block position extraction
+        blk_x, blk_y = s[0], s[1]
+        block_xy = obs_xy_to_plot_xy(blk_x, blk_y)
+
         ax.scatter(
-            star_xy[0],
-            star_xy[1],
+            block_xy[0],
+            block_xy[1],
             c=colors[key],
-            s=80,
-            marker="*",
+            s=100,
+            marker="o",
             edgecolors="black",
             linewidths=0.8,
-            label=f"{key} (loss={val['loss']:.3f})",
-            zorder=8,
+            alpha=0.5,
+            label=f"{key} block pos (loss={val['loss']:.3f})",
+            zorder=7,
         )
 
         ax.arrow(
-            star_xy[0],
-            star_xy[1],
+            block_xy[0],
+            block_xy[1],
             arrow_scale * action_vec[0],
             arrow_scale * action_vec[1],
             color=colors[key],
-            width=0.006,
-            head_width=0.045,
-            head_length=0.055,
+            width=0.004,
+            head_width=0.025,
+            head_length=0.035,
             length_includes_head=True,
             alpha=0.9,
             zorder=9,
         )
 
-    ax.legend()
+
+
+    ax.legend(loc="lower left", bbox_to_anchor=(1,1))
     ax.set_title("Trajectory Comparison")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
@@ -378,39 +416,42 @@ def histogram_ood(path):
     plt.savefig(png_path, dpi = 150)
     #plt.show()
 
-def noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512):
-    x_0 = x_0_single.repeat(Nb, 1)  # (Nb, 9)
-    #print("shape, ", x_0.shape)
+# def noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512):
+#     x_0 = x_0_single.repeat(Nb, 1)  # (Nb, 9)
+#     #print("shape, ", x_0.shape)
     
-    obs = x_0[:, :obs_size]      # clean, never noised
-    action = x_0[:, obs_size:]   # only this gets noised
-    #print("shape, ", action.shape)
+#     obs = x_0[:, :obs_size]      # clean, never noised
+#     action = x_0[:, obs_size:]   # only this gets noised
+#     #print("shape, ", action.shape)
     
-    t = torch.randint(0, diffusion.num_diffusion_steps, size=(Nb // 2 + 1,))
-    t = torch.cat([t, diffusion.num_diffusion_steps - t - 1], dim=0)[:Nb].long()
-    t = t.to(diffusion.device)
+#     t = torch.randint(0, diffusion.num_diffusion_steps, size=(Nb // 2 + 1,))
+#     t = torch.cat([t, diffusion.num_diffusion_steps - t - 1], dim=0)[:Nb].long()
+#     t = t.to(diffusion.device)
     
-    # noise only action
-    x_t_action, e = diffusion.diffusion_core.diffuse(diffusion, action, t, cond_dim=0)
+#     # noise only action
+#     x_t_action, e = diffusion.diffusion_core.diffuse(diffusion, action, t, cond_dim=0)
 
-    #print("action, ", action, "x_t_action, ", x_t_action) # action is 512 copies of the same thing, x_t changes all of those 512 copies
+#     #print("action, ", action, "x_t_action, ", x_t_action) # action is 512 copies of the same thing, x_t changes all of those 512 copies
     
-    # clamp obs back in — exactly like inference does
-    x_t = torch.cat([obs, x_t_action], dim=1)
+#     # clamp obs back in — exactly like inference does
+#     x_t = torch.cat([obs, x_t_action], dim=1)
 
-    #print("x_0, ", x_0, "x_t, ", x_t)
+#     #print("x_0, ", x_0, "x_t, ", x_t)
     
-    with torch.no_grad():
-        output = diffusion.model(x_t, t)
+#     with torch.no_grad():
+#         output = diffusion.model(x_t, t)
     
-    # loss only on action dims
-    err = e - output[:, obs_size:]
-    return err.square().mean().item()
+#     # loss only on action dims
+#     err = e - output[:, obs_size:]
+#     return err.square().mean().item()
 
 if __name__ == "__main__":
+
+    print("starting,,, ")
+
     which_ckpt = Path(sys.argv[1]) # folder name only
 
-    from diffusha.data_collection.env import make_env
+    # from diffusha.data_collection.env import make_env
 
     import time
 
@@ -418,29 +459,29 @@ if __name__ == "__main__":
 
     env_name =  "BlockPushMultimodal-v1"
 
-    env = make_env(
-        env_name,
-        seed=1,
-        test=False
-    )
+    # env = make_env(
+    #     env_name,
+    #     seed=1,
+    #     test=False
+    # )
 
-    obs_space = env.observation_space
-    act_space = env.action_space
-    print("obs_space, ", obs_space)
-    print("act_space, ", act_space)
+    # obs_space = env.observation_space
+    # act_space = env.action_space
+    # print("obs_space, ", obs_space)
+    # print("act_space, ", act_space)
     
-    with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
-        env2config = json.load(f)
+    # with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
+    #     env2config = json.load(f)
 
-        model_dir = Path(__file__).parents[2] / which_ckpt
-        print("model_dir, ", model_dir)
+    model_dir = Path(__file__).parents[2] / which_ckpt
+    print("model_dir, ", model_dir)
 
-        # NOTE - always use 2023
-        if "2023" in which_ckpt.name:
-            train_loss_csv_path = Path(__file__).parents[1] / "data_collection" / "2023-100-losses_1909.csv"
-            # fyi the "2023-100-loss.csv" is from the 4096 batch-average loss (from wandb directly)
+    # NOTE - always use 2023
+    if "2023" in which_ckpt.name:
+        train_loss_csv_path = Path(__file__).parents[1] / "data_collection" / "2023-100-losses_1909.csv"
+        # fyi the "2023-100-loss.csv" is from the 4096 batch-average loss (from wandb directly)
 
-        print("train csv_path, ", train_loss_csv_path)
+    print("train csv_path, ", train_loss_csv_path)
 
     # 1. load loss data from csv 
     train_losses = load_train_loss(train_loss_csv_path)
@@ -554,6 +595,7 @@ if __name__ == "__main__":
     #histogram_overlap(train_losses, ood_losses)
 
     # now plot these rep_states -- ood states on an existing, in-distribution trajectory
-    training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
-
+    
+    #training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
+    training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_with_eps"
     plot_ood_on_train_traj(rep_states, path1 = training_data_csv_path)

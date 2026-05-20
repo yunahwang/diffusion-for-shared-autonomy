@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Adopted from https://github.com/cbschaff/rsa/blob/master/lunar_lander/joystick_agent.py"""
 
+# resources - https://www.pygame.org/docs/ref/joystick.html
+# look under xbox 360 controller (pygame 2.x)
+"""
+
+"""
 import pygame
 
 import numpy as np
@@ -11,7 +16,7 @@ import torch
 import imageio
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
@@ -33,8 +38,9 @@ from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
 #####################################
 # Change these to match your joystick
-UP_AXIS = 3  # AKA ；up(negative) and down(positive)
-SIDE_AXIS = 2  # AKA ；left and right
+# All match to right stick - left -> right: axis 3, up -> down: axis r
+UP_AXIS = 4  # AKA ；up(negative) and down(positive)
+SIDE_AXIS = 3  # AKA ；left and right
 #####################################
 np.set_printoptions(precision=12, suppress=False)
 
@@ -71,11 +77,11 @@ class JoystickActor(Actor):
 
                 if event.axis == UP_AXIS:
                     print("up/down")
-                    self.human_agent_action[0] = -1 * v
+                    self.human_agent_action[1] = -1 * v
 
                 elif event.axis == SIDE_AXIS:
                     print("left/right")
-                    self.human_agent_action[1] = v
+                    self.human_agent_action[0] = v
 
         return self.human_agent_action
 
@@ -419,7 +425,7 @@ if __name__ == '__main__':
             "assisted_action_y": assisted_action_y,
             "gamma": gammas
         })
-        df.to_csv(csv_full_path, index = False)
+        #df.to_csv(csv_full_path, index = False)
 
         # NOTE
-        imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+        #imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
