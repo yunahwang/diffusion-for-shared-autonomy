@@ -16,12 +16,11 @@ import torch
 import imageio
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
+matplotlib.use('TkAgg') # use this for realtime plotting
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
-
-from sklearn.decomposition import PCA
 
 import json
 from pathlib import Path
@@ -200,8 +199,8 @@ if __name__ == '__main__':
         fig = plt.figure(figsize=(12, 6))
         
         ax = fig.add_subplot(1,2,1)
-        ax_loss = fig.add_subplot(2,2,2)
-        ax_action = fig.add_subplot(2,2,4)
+        ax_loss = fig.add_subplot(1,2,2)
+
         plt.show(block = False)
 
         # csv logging containers
@@ -231,8 +230,6 @@ if __name__ == '__main__':
             loss_log = []
             ob_log = []
             ob_action_log = []
-
-            pca = None
 
             traj_ids     = {"raw": [], "assisted": []}
 
@@ -277,7 +274,6 @@ if __name__ == '__main__':
                 loss_log.append(loss) # 5th column: loss
                 losses.append(loss)
 
-                pca = PCA(n_components=2)
 
                 if draw_trajs:
                     ax.clear()
@@ -287,47 +283,6 @@ if __name__ == '__main__':
                     ax_loss.set_title('noise estimation loss')
                     #ax_loss.set_xlabel('step')
                     ax_loss.set_ylabel('loss')
-
-                   # 2d project the joint distribution (action conditioned on state)
-                    if len(ob_action_log) >= 2:
-            
-                        pca.fit(np.array(ob_action_log))
-                        obs_2d  = pca.transform(np.array(ob_action_log))
-                        curr_2d = obs_2d[-1]
-                        prev_2d = obs_2d[-2]
-
-                        raw_2d      = pca.transform([np.concatenate([ob[:7], raw_action])])[0]
-                        assisted_2d = pca.transform([np.concatenate([ob[:7], assisted_action])])[0]
-
-                        ax_action.clear()
-
-                        # plot current state projection into 2d (accumulation)
-                        ax_action.plot(obs_2d[:, 0], obs_2d[:, 1], 'k-', linewidth=1, zorder=4)
-                        sc = ax_action.scatter(obs_2d[:, 0], obs_2d[:, 1],
-                                            c=loss_log, cmap='RdYlGn_r',
-                                            vmin=0, vmax=2.0, s=30, zorder=5)
-
-                        # highlight the very-moment one in scatter plot
-                        ax_action.scatter(*curr_2d, c='black', s=100, zorder=6)
-
-                        raw_dir      = (raw_2d - curr_2d) * 3.0
-                        assisted_dir = (assisted_2d - curr_2d) * 3.0
-
-                        ax_action.quiver(*prev_2d, 
-                                        *(curr_2d - prev_2d),  # direction toward current
-                                        angles='xy', scale_units='xy', scale=1,
-                                        color='blue', width=0.01, zorder=7)
-
-                        # assisted: from prev state, where would assisted have gone
-                        ax_action.quiver(*prev_2d,
-                                        *(assisted_2d - prev_2d),
-                                        angles='xy', scale_units='xy', scale=1,
-                                        color='orange', width=0.01, zorder=7)
-
-                        ax_action.set_title('state space PCA (colored by loss)')
-                        ax_action.set_xlabel('PC1')
-                        ax_action.set_ylabel('PC2')
-
 
 
                     size = 0.12
