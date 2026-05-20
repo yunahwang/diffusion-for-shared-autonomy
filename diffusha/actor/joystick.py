@@ -148,7 +148,9 @@ if __name__ == '__main__':
 
         #model_dir = Path(__file__).parents[2] / "data-dir" / "ddpm" / "diffusha" / model_id 
         
-        model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
+        # model_dir = Path(__file__).parents[2] / "tr3wtwfz" 
+
+        model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
         raw_to_which_side = "left"
