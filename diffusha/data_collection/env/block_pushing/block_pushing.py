@@ -80,8 +80,8 @@ INITIAL_JOINT_POSITIONS = np.array([
 
 DEFAULT_CAMERA_POSE = (1., 0, 0.75)
 DEFAULT_CAMERA_ORIENTATION = (np.pi / 4, np.pi, -np.pi / 2)
-IMAGE_WIDTH = 640 # was 320
-IMAGE_HEIGHT = 480 # was 240
+IMAGE_WIDTH = 2000 # was 320
+IMAGE_HEIGHT = 1600 # was 240
 CAMERA_INTRINSICS = (0.803*IMAGE_WIDTH,  # fx
                      0,
                      IMAGE_WIDTH/2.,  # cx

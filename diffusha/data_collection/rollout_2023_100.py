@@ -35,10 +35,10 @@ def unwrap(env):
 
 def get_obs():
     # NOTE: this goes right/green
-    #folder_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup" # all goes to left
+    folder_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup" 
     
     # NOTE: this goes left/red
-    folder_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "target-flipped" / "realsies_2023_flipped_csv_backup_100"
+    #folder_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "target-flipped" / "realsies_2023_flipped_csv_backup_100"
     csv_files = sorted(Path(folder_path).glob("*.csv"))
     n_files = len(csv_files)
     all_obs = []

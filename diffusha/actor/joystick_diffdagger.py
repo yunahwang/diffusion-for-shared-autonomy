@@ -3,7 +3,7 @@
 # resources - https://www.pygame.org/docs/ref/joystick.html
 # look under xbox 360 controller (pygame 2.x)
 
-import pygame
+# import pygame
 
 import numpy as np
 import pandas as pd
@@ -18,6 +18,8 @@ matplotlib.use('TkAgg') # use this for realtime plotting
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
+
+import pygame
 
 import json
 from pathlib import Path
@@ -105,11 +107,12 @@ def get_effector_xy_from_obs(ob):
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
-    
     no_assist = False # if False, use DiffusionAssistedActor
 
     draw_trajs = True
-    fwd_diff_ratio = 0.0 # NOTE - change this and also line 145
+    save_csvs = True
+
+    fwd_diff_ratio = 1.0 # NOTE - change this and also line 145
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -120,6 +123,7 @@ if __name__ == '__main__':
     )
 
     actor = JoystickDiffDaggerActor(env)
+
 
     if no_assist:
         for _ in range(10000):
@@ -144,20 +148,15 @@ if __name__ == '__main__':
         with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
             env2config = json.load(f)
 
-
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
-        raw_to_which_side = "left"
+        raw_to_which_side = "right_ood" # because left is baseline
         trial_num = 1
 
-        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / "trial_" + str(trial_num)
+        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
         os.makedirs(subdir_path, exist_ok=True)
 
-        time_rn = "%Y%m%d-%H%M%S"
-    
-        csv_name = time.strftime(time_rn)+".csv"
-        csv_full_path = subdir_path / csv_name
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
         laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
@@ -195,7 +194,7 @@ if __name__ == '__main__':
         
         ax = fig.add_subplot(1,2,1)
         ax_loss = fig.add_subplot(1,2,2)
-        plt.show(block = False)
+        # plt.show(block = False)
 
         # csv logging containers
         # columns of the csv is as follows: 
@@ -213,13 +212,17 @@ if __name__ == '__main__':
         episode_losses=[]
 
         # load human demonstrator
-        for ep in range(1, 4):
+        for ep in range(1, 11):
             # NOTE: change this number
 
             if draw_trajs:
                 #gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
                 gif_name = "episode_" + str(ep) + ".gif"
                 gif_full_path = subdir_path / gif_name
+
+            if save_csvs:
+                csv_name = "episode_" + str(ep) + ".csv"
+                csv_full_path = subdir_path / csv_name
 
             ob = env.reset()
             
@@ -237,6 +240,8 @@ if __name__ == '__main__':
             frames = []
 
             traj_ids     = {"raw": [], "assisted": []}
+
+            #plt.show(block = False)
 
             while not done:
                 env.render()
@@ -364,8 +369,6 @@ if __name__ == '__main__':
                     frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
                     frames.append(frame)
 
-                    # NOTE
-                    imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
 
                 # 1st col: episode
                 eps.append(ep)
@@ -390,7 +393,7 @@ if __name__ == '__main__':
                 gammas.append(fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                #time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
+                time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
             
             episode_losses.append(loss_log.copy())
 
@@ -403,20 +406,24 @@ if __name__ == '__main__':
 
             # print("which_side, after, ", which_side)
 
-        # save as dataframe, then as csv
-        df = pd.DataFrame({
-            "ep": eps,
-            "which_goal": which_side,
-            "steps_accum": steps_accum,
-            "reward": rewards,
-            "loss": losses, 
-            "diff": diffs,
-            "raw_input_action_x": raw_input_action_x,
-            "raw_input_action_y": raw_input_action_y,
-            "assisted_action_x": assisted_action_x,
-            "assisted_action_y": assisted_action_y,
-            "gamma": gammas,
+            # save as dataframe, then as csv
+            df = pd.DataFrame({
+                "ep": eps,
+                "which_goal": which_side,
+                "steps_accum": steps_accum,
+                "reward": rewards,
+                "loss": losses, 
+                "diff": diffs,
+                "raw_input_action_x": raw_input_action_x,
+                "raw_input_action_y": raw_input_action_y,
+                "assisted_action_x": assisted_action_x,
+                "assisted_action_y": assisted_action_y,
+                "gamma": gammas,
 
-        })
-        df.to_csv(csv_full_path, index = False)
+            })
+            df.to_csv(csv_full_path, index = False)
+
+            # NOTE
+            imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+
 
