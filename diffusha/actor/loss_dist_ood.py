@@ -77,14 +77,14 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
 
     def obs_xy_to_plot_xy(x, y):
         return np.array([
-            -x + 0.4,
+            0.8 + x + 0.4,
              y + 0.35,
         ])
 
     def obs_action_to_plot_vec(ax_, ay_):
         # Same x flip as positions, no offset for vectors
         return np.array([
-            ax_,
+            -ax_,
              ay_,
         ])
 
@@ -128,8 +128,8 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
     # Start with actual env-inspired positions, but adjust if needed.
     # Green is placed over/near the blue clump.
     # Red is slightly to the +x side from viewer perspective here.
-    green_center = np.array([0.50, 0.3])
-    red_center   = np.array([0.30, 0.3])
+    green_center = np.array([0.50 + 0.8 , 0.3])
+    red_center   = np.array([0.30 + 0.8, 0.3])
 
     target_size = 0.02
 
@@ -230,11 +230,12 @@ def plot_ood_on_train_traj(rep_states, path1, path2=None):
 
 
 
-    ax.legend(loc="lower left", bbox_to_anchor=(1,1))
+    #ax.legend(loc="lower left", bbox_to_anchor=(1,1))
+    ax.legend(fontsize=8)
     ax.set_title("Trajectory Comparison")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
-    ax.grid(True)
+    #ax.grid(True)
     ax.axis("equal")
 
     plt.tight_layout()
@@ -330,30 +331,30 @@ if __name__ == "__main__":
 
     which_ckpt = Path(sys.argv[1]) # folder name only
 
-    from diffusha.data_collection.env import make_env
+    # from diffusha.data_collection.env import make_env
 
     import time
 
-    fwd_diff_ratio = 0.0 # GAMMA = 0!
+    # fwd_diff_ratio = 0.0 # GAMMA = 0!
 
-    env_name =  "BlockPushMultimodal-v1"
+    # env_name =  "BlockPushMultimodal-v1"
 
-    env = make_env(
-        env_name,
-        seed=1,
-        test=False
-    )
+    # env = make_env(
+    #     env_name,
+    #     seed=1,
+    #     test=False
+    # )
 
-    obs_space = env.observation_space
-    act_space = env.action_space
-    print("obs_space, ", obs_space)
-    print("act_space, ", act_space)
+    # obs_space = env.observation_space
+    # act_space = env.action_space
+    # print("obs_space, ", obs_space)
+    # print("act_space, ", act_space)
     
-    with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
-        env2config = json.load(f)
+    # with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
+    #     env2config = json.load(f)
 
-    model_dir = Path(__file__).parents[2] / which_ckpt
-    print("model_dir, ", model_dir)
+    # model_dir = Path(__file__).parents[2] / which_ckpt
+    # print("model_dir, ", model_dir)
 
     # NOTE - always use 2023
     if "2023" in which_ckpt.name:
@@ -372,66 +373,66 @@ if __name__ == "__main__":
     print("shape of states array, ", states.shape)
     print("length of states array, ", len(states))
 
-    # 3. instantiate a diffusion model with gamma = 0.0
-    laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
+    # # 3. instantiate a diffusion model with gamma = 0.0
+    # laggy_actor_repeat_prob = 0; noisy_actor_eps = 0
 
-    diffusion = prepare_diffusha(
-            env, 
-            env2config[env_name], 
-            model_dir,
-            29999,
-            env_name,
-            fwd_diff_ratio,
-            laggy_actor_repeat_prob,
-            noisy_actor_eps
-        )
-    print(diffusion, flush=True)
+    # diffusion = prepare_diffusha(
+    #         env, 
+    #         env2config[env_name], 
+    #         model_dir,
+    #         29999,
+    #         env_name,
+    #         fwd_diff_ratio,
+    #         laggy_actor_repeat_prob,
+    #         noisy_actor_eps
+    #     )
+    # print(diffusion, flush=True)
 
     # 4. input ood state from 2. and plot losses on the same plot after accumulating them
     # 4-1. calculate losses 
 
-    Nb = 512
+    # Nb = 512
 
-    all_losses = []; file_times = []; all_losses_flattened = []
+    # all_losses = []; file_times = []; all_losses_flattened = []
 
-    for i in range(len(states)):
-        if i == 1:
-            break
-        losses_for_file = []
+    # for i in range(len(states)):
+    #     if i == 1:
+    #         break
+    #     losses_for_file = []
 
-        states_for_file = states[i]
-        file_start = time.time()
+    #     states_for_file = states[i]
+    #     file_start = time.time()
 
-        for j, state in enumerate(states_for_file):
+    #     for j, state in enumerate(states_for_file):
 
-            if j % 100 == 0:
-                print(f"going through {j}-th row in {i}-th file")
-            state_tensor = torch.tensor(state, dtype = torch.float32).unsqueeze(0) # this is a single row
+    #         if j % 100 == 0:
+    #             print(f"going through {j}-th row in {i}-th file")
+    #         state_tensor = torch.tensor(state, dtype = torch.float32).unsqueeze(0) # this is a single row
             
-            with torch.no_grad():
-                loss = noise_estimation_loss_nb_infer(diffusion, state_tensor, obs_size=7, Nb=Nb)
-            losses_for_file.append(loss)
+    #         with torch.no_grad():
+    #             loss = noise_estimation_loss_nb_infer(diffusion, state_tensor, obs_size=7, Nb=Nb)
+    #         losses_for_file.append(loss)
 
-        file_elapsed = time.time() - file_start
-        file_times.append(file_elapsed)
+    #     file_elapsed = time.time() - file_start
+    #     file_times.append(file_elapsed)
 
-        avg_time = np.mean(file_times)
-        files_remaining = len(states) - (i + 1)
-        eta_seconds = avg_time * files_remaining
-        eta_min = eta_seconds / 60
+    #     avg_time = np.mean(file_times)
+    #     files_remaining = len(states) - (i + 1)
+    #     eta_seconds = avg_time * files_remaining
+    #     eta_min = eta_seconds / 60
 
-        print(f"[{i+1}/{len(states)}] | "
-              f"took {file_elapsed:.1f}s | "
-              f"avg {avg_time:.1f}s/file | "
-              f"ETA {eta_min:.1f} min")
+    #     print(f"[{i+1}/{len(states)}] | "
+    #           f"took {file_elapsed:.1f}s | "
+    #           f"avg {avg_time:.1f}s/file | "
+    #           f"ETA {eta_min:.1f} min")
 
-        all_losses.append(losses_for_file)
+    #     all_losses.append(losses_for_file)
 
-        all_losses_flattened.extend(losses_for_file)
+    #     all_losses_flattened.extend(losses_for_file)
 
-    df = pd.DataFrame({"loss": all_losses_flattened})
-    df.to_csv("flipped(ood)_vs_2023_100_1824.csv", index = False)
-    print("ood losses saved to csv")
+    # df = pd.DataFrame({"loss": all_losses_flattened})
+    #df.to_csv("flipped(ood)_vs_2023_100_1824.csv", index = False)
+    # print("ood losses saved to csv")
     
     # 4-2. ood losses plot only
     #plot_ood_losses_1(all_losses)
@@ -444,7 +445,7 @@ if __name__ == "__main__":
     # quantile analysis - 25, 50, 75, 99 quantile for train vs ood
     ood_losses = load_ood_loss(ood_loss_csv_path)
 
-    #train_q, ood_q, rep_states = quantile_analysis(train_losses, ood_losses, states)
+    train_q, ood_q, rep_states = quantile_analysis(train_losses, ood_losses, states)
 
     # grab state for p25 ood, p50 ood, p75 ood, and p99 ood based on quantile analysis results
     # quantile_analysis may return instead of plain print
@@ -477,4 +478,4 @@ if __name__ == "__main__":
     
     #training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
     training_data_csv_path = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_with_eps"
-    #plot_ood_on_train_traj(rep_states, path1 = training_data_csv_path)
+    plot_ood_on_train_traj(rep_states, path1 = training_data_csv_path)

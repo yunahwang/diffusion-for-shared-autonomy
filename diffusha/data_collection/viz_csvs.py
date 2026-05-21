@@ -1,3 +1,6 @@
+# usecase - "python diffusha/data_collection/viz_csvs.py data-dir/replay/blockpush/orig_2023_csv_with_eps/
+
+
 from pathlib import Path
 import sys
 import pandas as pd
@@ -8,68 +11,57 @@ matplotlib.set_loglevel("critical")
 import matplotlib.pyplot as plt
 
 
-# ee version - one plot per csv (ignored multiple episodes inside csv)
-# def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False):
+# USE THIS WHEN STANDALONE
+# def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_png=True, return_option=False):
 #     csvs = sorted([entry.name for entry in path.iterdir() if entry.name.endswith(".csv")])
-
 #     coord_offset = np.array([0.4, 0.35])
 
-#     plt.figure()
-
-#     for i, csv in enumerate(csvs):
-#         print("i, ", i)
-
+#     for i, csv in enumerate(csvs[:1]):
+#         if i % 5 == 0:
+#             print(f"going through {i}th file out of {len(csvs)} in total")
 #         full_csv_path = path / csv
-#         df = pd.read_csv(full_csv_path, header=None)
+#         print(full_csv_path)
+#         df = pd.read_csv(full_csv_path, header=0)
 
-#         ee_centered = df.iloc[:, [3, 4]].to_numpy(dtype=float)
+#         fig, ax = plt.subplots()  # ← one figure per CSV, inside the loop
 
-#         # Same mapping as PyBullet replay:
-#         # world_x = -centered_x + 0.4
-#         # world_y =  centered_y + 0.35
-#         ee_world = np.column_stack([
-#             -ee_centered[:, 0],
-#              ee_centered[:, 1],
-#         ]) + coord_offset
+#         for ep_id, ep_df in df.groupby("episode"):
+#             block_centered = ep_df[["block_x", "block_y"]].to_numpy(dtype=float)
+#             block_world = np.column_stack([
+#                 0.8 + block_centered[:, 0],
+#                 block_centered[:, 1],
+#             ]) + coord_offset
 
-#         ee_x = ee_world[:, 0]
-#         ee_y = ee_world[:, 1]
+#             blk_x = block_world[:, 0]
+#             blk_y = block_world[:, 1]
+#             start_x, start_y = block_world[0]
+#             end_x,   end_y   = block_world[-1]
 
-#         start_x, start_y = ee_world[0]
-#         end_x, end_y = ee_world[-1]
+#             if not zoom_endpoints_only:
+#                 ax.plot(blk_x, blk_y, color="blue", lw=0.01, alpha=0.7)
+#             ax.scatter(start_x, start_y, c="green", s=0.02)
+#             if not no_plot_ee_end:
+#                 ax.scatter(end_x, end_y, c="peachpuff", s=0.02, marker="v",
+#                            edgecolors="black", linewidths=0.5)
 
-#         label_traj = "ee_pos" if i == 0 else None
-#         label_start = "ee_start_pos" if i == 0 else None
-#         label_end = "ee_end_pos" if i == 0 else None
+#         ax.scatter([], [], c="green", s=0.02, label="block_start")
+#         ax.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
 
-#         if not zoom_endpoints_only:
-#             plt.plot(ee_x, ee_y, color="blue", lw=0.01, alpha=0.25, label=label_traj)
+#         # ax.set_xlim(0.4, 0.6)
+#         # ax.set_ylim(-0.3, 0.3)
+#         ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
+#         ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
+#         ax.tick_params(axis='both', labelsize=4)
+#         plt.xticks(rotation=90)
+#         ax.legend()
+#         ax.axis("equal")
 
-#         plt.scatter(start_x, start_y, c="green", s=30, label=label_start)
+#         out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
+#         fig.savefig(out_path, dpi=150)
+#         if not return_option:
+#             plt.close(fig)
 
-#         if not no_plot_ee_end:
-#             plt.scatter(
-#                 end_x,
-#                 end_y,
-#                 c="peachpuff",
-#                 s=120,
-#                 marker="v",
-#                 edgecolors="black",
-#                 linewidths=0.5,
-#                 label=label_end,
-#             )
-
-
-#     plt.xlabel("X")
-#     plt.ylabel("Y")
-#     plt.title("Trajectory Comparison")
-#     plt.legend()
-#     plt.axis("equal")
-#     plt.grid(True)
-#     plt.show()
-
-#     print("Saved plot to 2023_ee_traj.png")
-
+# USE THIS WHEN WITH CALLS
 def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_png=True, return_option=False):
     csvs = sorted([entry.name for entry in path.iterdir() if entry.name.endswith(".csv")])
     coord_offset = np.array([0.4, 0.35])
@@ -88,7 +80,7 @@ def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_p
         for ep_id, ep_df in df.groupby("episode"):
             block_centered = ep_df[["block_x", "block_y"]].to_numpy(dtype=float)
             block_world = np.column_stack([
-                -block_centered[:, 0],
+                0.8 + block_centered[:, 0],
                 block_centered[:, 1],
             ]) + coord_offset
 
@@ -109,15 +101,20 @@ def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_p
         ax.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
 
         ax = plt.gca()
+
+        # NOTE: comment when running with ood on traj generation
         # ax.set_xlim(0.4, 0.6)
         # ax.set_ylim(-0.3, 0.3)
-        # ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
-        # ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
-        # ax.tick_params(axis='both', labelsize=4)
-        # plt.xticks(rotation=90)
-        # plt.legend()
-        # out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
-        # plt.savefig(out_path, dpi=150)
+
+        ax.axis("equal")
+
+        ax.xaxis.set_major_locator(plt.MultipleLocator(0.01))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
+        ax.tick_params(axis='both', labelsize=4)
+        plt.xticks(rotation=90)
+        plt.legend()
+        out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
+        plt.savefig(out_path, dpi=150)
         if not return_option:
             plt.close()
 
