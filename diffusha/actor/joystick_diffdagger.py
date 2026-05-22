@@ -103,16 +103,41 @@ def get_effector_xy_from_obs(ob):
 
     return [ob[3], ob[4]]
 
+def compute_linear_gamma(
+    loss: float,
+    gamma_min: float = 0.0,
+    gamma_max: float = 1.0,
+    loss_cap: float = 2.0,
+) -> float:
+    t = float(np.clip(loss / loss_cap, 0.0, 1.0))
+    return gamma_max - t * (gamma_max - gamma_min)
+
+
+def compute_sigmoid_gamma(
+    loss: float,
+    gamma_min: float = 0.0,
+    gamma_max: float = 1.0,
+    sigma_med: float = 1.0,
+    sigma_scale: float = 1.0,
+) -> float:
+    z = (loss - sigma_med) / sigma_scale
+    s = 1.0 / (1.0 + np.exp(z))
+    return gamma_min + s * (gamma_max - gamma_min)
 
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
     no_assist = False # if False, use DiffusionAssistedActor
 
+    # NOTE - change the following lines
+    # TODO - may make it into an argument
     draw_trajs = True
     save_csvs = True
 
-    fwd_diff_ratio = 1.0 # NOTE - change this and also line 145
+    shape = "linear" # other option: "sigmoid"
+    shape_save = True
+
+    fwd_diff_ratio = 0.0 
 
     env_name =  "BlockPushMultimodal-v1"
 
@@ -123,7 +148,6 @@ if __name__ == '__main__':
     )
 
     actor = JoystickDiffDaggerActor(env)
-
 
     if no_assist:
         for _ in range(10000):
@@ -152,10 +176,11 @@ if __name__ == '__main__':
 
         # NOTE: change here 
         raw_to_which_side = "right_ood" # because left is baseline
-        trial_num = 1
+        trial_num = "extra_2"
 
-        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
-        os.makedirs(subdir_path, exist_ok=True)
+        if save_csvs:
+            subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
+            os.makedirs(subdir_path, exist_ok=True)
 
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
@@ -218,11 +243,11 @@ if __name__ == '__main__':
             if draw_trajs:
                 #gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
                 gif_name = "episode_" + str(ep) + ".gif"
-                gif_full_path = subdir_path / gif_name
 
             if save_csvs:
                 csv_name = "episode_" + str(ep) + ".csv"
                 csv_full_path = subdir_path / csv_name
+                gif_full_path = subdir_path / gif_name
 
             ob = env.reset()
             
@@ -276,6 +301,9 @@ if __name__ == '__main__':
                 assisted_action_x.append(assisted_action.copy()[0])
                 assisted_action_y.append(assisted_action.copy()[1])
 
+                """
+                Diffdagger highlight!!
+                """
                 # Call diffdagger loss
                 # Build x_0_single from current ob and raw_action
                 ob_tensor     = torch.tensor(ob.copy(), dtype=torch.float32).unsqueeze(0)   # (1, 7)
@@ -286,6 +314,27 @@ if __name__ == '__main__':
                 print("nb_loss", nb_loss)
                 loss_log.append(nb_loss)
                 losses.append(nb_loss)
+
+                """
+                Compute correct gamma as per diffdagger loss
+                """
+                dyn_gammas = []
+                if shape == "linear":
+                    ninetyfive_percentile_value = 0.3233
+                    loss_cap = ninetyfive_percentile_value
+                    gamma = compute_linear_gamma(nb_loss, loss_cap=loss_cap)
+
+                elif shape == "sigmoid":
+                    fifty_percentile_value = 0.0378
+                    sigma_med = fifty_percentile_value
+                    gamma = compute_sigmoid_gamma(nb_loss, sigma_med)
+
+                print(f"loss: {nb_loss}, gamma: {gamma}")
+
+                if shape_save:
+                    dyn_gammas.append(gamma)
+
+                    # TODO: create helper function for plotting losses against gammas
 
                 if draw_trajs:
                     ax.clear()
@@ -393,7 +442,7 @@ if __name__ == '__main__':
                 gammas.append(fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
+                time.sleep(0.1) # NOTE - don't do this for gamma 0.0s
             
             episode_losses.append(loss_log.copy())
 
@@ -407,23 +456,24 @@ if __name__ == '__main__':
             # print("which_side, after, ", which_side)
 
             # save as dataframe, then as csv
-            df = pd.DataFrame({
-                "ep": eps,
-                "which_goal": which_side,
-                "steps_accum": steps_accum,
-                "reward": rewards,
-                "loss": losses, 
-                "diff": diffs,
-                "raw_input_action_x": raw_input_action_x,
-                "raw_input_action_y": raw_input_action_y,
-                "assisted_action_x": assisted_action_x,
-                "assisted_action_y": assisted_action_y,
-                "gamma": gammas,
+            if save_csvs:
+                df = pd.DataFrame({
+                    "ep": eps,
+                    "which_goal": which_side,
+                    "steps_accum": steps_accum,
+                    "reward": rewards,
+                    "loss": losses, 
+                    "diff": diffs,
+                    "raw_input_action_x": raw_input_action_x,
+                    "raw_input_action_y": raw_input_action_y,
+                    "assisted_action_x": assisted_action_x,
+                    "assisted_action_y": assisted_action_y,
+                    "gamma": gammas,
 
-            })
-            df.to_csv(csv_full_path, index = False)
+                })
+                df.to_csv(csv_full_path, index = False)
 
-            # NOTE
-            imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
+                # NOTE
+                imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
 
 

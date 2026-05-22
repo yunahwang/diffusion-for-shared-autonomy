@@ -97,8 +97,8 @@ def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_p
                             edgecolors="black", linewidths=0.5)
 
         # labels for legend (just once, after the loop)
-        ax.scatter([], [], c="green", s=0.02, label="block_start")
-        ax.scatter([], [], c="peachpuff", s=0.02, marker="v", label="block_end")
+        ax.scatter([], [], c="green", s=0.02)
+        ax.scatter([], [], c="peachpuff", s=0.02, marker="v")
 
         ax = plt.gca()
 
@@ -112,7 +112,7 @@ def plot_path(path, zoom_endpoints_only=False, no_plot_ee_end=False, use_saved_p
         ax.yaxis.set_major_locator(plt.MultipleLocator(0.01))
         ax.tick_params(axis='both', labelsize=4)
         plt.xticks(rotation=90)
-        plt.legend()
+        #plt.legend()
         out_path = Path(__file__).parents[1] / "data_collection" / "train_data_traj.png"
         plt.savefig(out_path, dpi=150)
         if not return_option:
