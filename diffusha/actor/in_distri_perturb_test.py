@@ -173,51 +173,53 @@ def main(data_dir):
     all_rows = pd.concat(all_rows, ignore_index=True)
 
     all_states = []
-    for _, row in all_rows.iterrows():
-        state = tuple(row.iloc[3:12])  # cols 3–11: 7d obs + 2d action
+    for j, (_, row) in enumerate(all_rows.iterrows()):
+        state = tuple(row.iloc[3:12])
         all_states.append(state)
+        if j == 51 or j == 10:
+            print("state", state)
 
     # --- load model ---
-    model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
-    env = make_env("BlockPushMultimodal-v1", seed=1, test=False)
-    with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
-        env2config = json.load(f)
+    # model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
+    # env = make_env("BlockPushMultimodal-v1", seed=1, test=False)
+    # with open(Path(__file__).parents[1] / "diffusion" / "evaluation" / "configs.json", "r") as f:
+    #     env2config = json.load(f)
 
-    diffusion = prepare_diffusha(
-        env, env2config["BlockPushMultimodal-v1"], model_dir,
-        29999, "BlockPushMultimodal-v1", 1.0, 0.0, 0.0,
-    )
-    print(diffusion, flush=True)
+    # diffusion = prepare_diffusha(
+    #     env, env2config["BlockPushMultimodal-v1"], model_dir,
+    #     29999, "BlockPushMultimodal-v1", 1.0, 0.0, 0.0,
+    # )
+    # print(diffusion, flush=True)
 
-    # --- run perturbations ---
-    perturbations = build_perturbations(all_states)
+    # # --- run perturbations ---
+    # perturbations = build_perturbations(all_states)
 
-    results = {}
-    summary_rows = []
-    for name, states in perturbations.items():
-        print(f"\n--- {name} ---", flush=True)
-        losses = calculate_losses(states, diffusion, Nb=512)
-        results[name] = losses
-        arr = np.array(losses)
-        summary_rows.append({
-            "perturbation": name,
-            "mean": arr.mean(),
-            "std":  arr.std(),
-            "min":  arr.min(),
-            "max":  arr.max(),
-        })
-        print(f"  mean={arr.mean():.4f}  std={arr.std():.4f}  min={arr.min():.4f}  max={arr.max():.4f}")
+    # results = {}
+    # summary_rows = []
+    # for name, states in perturbations.items():
+    #     print(f"\n--- {name} ---", flush=True)
+    #     losses = calculate_losses(states, diffusion, Nb=512)
+    #     results[name] = losses
+    #     arr = np.array(losses)
+    #     summary_rows.append({
+    #         "perturbation": name,
+    #         "mean": arr.mean(),
+    #         "std":  arr.std(),
+    #         "min":  arr.min(),
+    #         "max":  arr.max(),
+    #     })
+    #     print(f"  mean={arr.mean():.4f}  std={arr.std():.4f}  min={arr.min():.4f}  max={arr.max():.4f}")
 
-    # --- save per-sample losses (one column per perturbation) ---
-    out_dir = Path(__file__).parent
-    losses_df = pd.DataFrame(results)   # each column = one perturbation, each row = one sample
-    losses_df.to_csv(out_dir / "perturbation_losses.csv", index_label="sample_idx")
-    print(f"\nSaved per-sample losses → {out_dir / 'perturbation_losses.csv'}")
+    # # --- save per-sample losses (one column per perturbation) ---
+    # out_dir = Path(__file__).parent
+    # losses_df = pd.DataFrame(results)   # each column = one perturbation, each row = one sample
+    # losses_df.to_csv(out_dir / "perturbation_losses.csv", index_label="sample_idx")
+    # print(f"\nSaved per-sample losses → {out_dir / 'perturbation_losses.csv'}")
 
-    # --- save summary ---
-    summary_df = pd.DataFrame(summary_rows)
-    summary_df.to_csv(out_dir / "perturbation_summary.csv", index=False)
-    print(f"Saved summary          → {out_dir / 'perturbation_summary.csv'}")
+    # # --- save summary ---
+    # summary_df = pd.DataFrame(summary_rows)
+    # summary_df.to_csv(out_dir / "perturbation_summary.csv", index=False)
+    # print(f"Saved summary          → {out_dir / 'perturbation_summary.csv'}")
 
 
 if __name__ == "__main__":

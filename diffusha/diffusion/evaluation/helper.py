@@ -46,6 +46,7 @@ def prepare_diffusha(
         act_space = sample_env.action_space
         obs_size = obs_space.low.size
         act_size = act_space.low.size
+        print("obs_size, ", obs_size, " act_size, ", act_size) # 7, 2
 
     # Load diffusion model
     #print("beta_schedule, ", Args.beta_schedule)

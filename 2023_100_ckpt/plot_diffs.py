@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------------------------
 
 # NOTE: 
-REPLACE_WITH_CLEAN = True
+REPLACE_WITH_CLEAN = False
 
 CLEAN_EPISODES = {
     ("0.0", "right_ood") : [
@@ -168,7 +168,122 @@ def make_dicts(root_folder):
 
     return dict(result)
 
+def plot_loss_ribbon_late_steps(
+    result: dict[tuple[str, str], list[pd.DataFrame]],
+    pair_a: tuple[str, str],
+    pair_b: tuple[str, str],
+    metric: str = "loss",
+    out_name: str = "loss_late_steps.png",
+):
+    """
+    For each late-step fraction (50%, 25%, 10%, 5%, 1%), plot two panels:
+      - Per-episode means (connected dot plot + Welch t-test)
+      - All steps violin (Mann-Whitney U)
+    Result: 5 rows x 2 cols = 10 subplots total.
+    """
+    from scipy import stats
+    from scipy.stats import mannwhitneyu
 
+    fractions = [0.50, 0.25, 0.10, 0.05, 0.01]
+    fraction_labels = ["latter 50%", "latter 25%", "latter 10%", "latter 5%", "latter 1%"]
+
+    color_a = _get_color(*pair_a)
+    color_b = _get_color(*pair_b)
+    label_a = _label(*pair_a)
+    label_b = _label(*pair_b)
+
+    fig, axes = plt.subplots(5, 2, figsize=(14, 22))
+    fig.suptitle(
+        f"Loss comparison on latter N% of steps\n{label_a}  vs  {label_b}",
+        fontsize=13, y=1.01
+    )
+
+    for row_idx, (frac, frac_label) in enumerate(zip(fractions, fraction_labels)):
+        ax_left  = axes[row_idx, 0]   # per-episode means
+        ax_right = axes[row_idx, 1]   # all steps
+
+        # --- collect late-step values for each pair ---
+
+        def get_late_vals_and_counts(pair):
+            ep_means = []
+            all_vals = []
+            n_steps_kept = []
+            for df in result.get(pair, []):
+                for _, ep_df in df.groupby("ep"):
+                    vals = ep_df[metric].values
+                    n_keep = max(1, int(np.ceil(len(vals) * frac)))
+                    late_vals = vals[-n_keep:]
+                    ep_means.append(np.nanmean(late_vals))
+                    all_vals.extend(late_vals.tolist())
+                    n_steps_kept.append(n_keep)
+            return np.array(ep_means), np.array(all_vals), np.array(n_steps_kept)
+
+        ep_means_a, all_vals_a, counts_a = get_late_vals_and_counts(pair_a)
+        ep_means_b, all_vals_b, counts_b = get_late_vals_and_counts(pair_b)
+
+        avg_steps_a = np.mean(counts_a) if len(counts_a) > 0 else 0
+        avg_steps_b = np.mean(counts_b) if len(counts_b) > 0 else 0
+        steps_info = f"avg steps kept: {label_a}={avg_steps_a:.1f}, {label_b}={avg_steps_b:.1f}"
+
+        # filter nans
+        all_vals_a = all_vals_a[~np.isnan(all_vals_a)]
+        all_vals_b = all_vals_b[~np.isnan(all_vals_b)]
+
+        if len(all_vals_a) == 0 or len(all_vals_b) == 0:
+            ax_left.set_title(f"{frac_label} — no data")
+            ax_right.set_title(f"{frac_label} — no data")
+            continue
+
+        # stats
+        t_stat, p_t = stats.ttest_ind(ep_means_a, ep_means_b, equal_var=False)
+        _, p_mw = mannwhitneyu(all_vals_a, all_vals_b, alternative='two-sided')
+
+        # ── Left: per-episode means ──────────────────────────────────────
+        for i, (ep_means, pair) in enumerate([(ep_means_a, pair_a), (ep_means_b, pair_b)]):
+            color = _get_color(*pair)
+            ax_left.vlines(i, np.min(ep_means), np.max(ep_means), color=color, linewidth=2)
+            ax_left.scatter([i] * len(ep_means), ep_means, color=color, s=40, zorder=4, alpha=0.6)
+            ax_left.scatter(i, np.mean(ep_means), color=color, s=120, zorder=5,
+                            marker='D', label=f"{_label(*pair)}\nmean={np.mean(ep_means):.3f}")
+
+        ax_left.plot([0, 1], [np.mean(ep_means_a), np.mean(ep_means_b)],
+                     color="gray", linewidth=1.5, linestyle="--", zorder=3)
+        ax_left.set_xticks([0, 1])
+        ax_left.set_xticklabels([_label(*pair_a), _label(*pair_b)], fontsize=8)
+        ax_left.set_xlim(-0.4, 1.4)
+        ax_left.set_ylabel("Mean loss per episode")
+        ax_left.set_ylim(bottom=0)
+        ax_left.legend(fontsize=7)
+        ax_left.set_title(
+            f"{frac_label} ({steps_info})\n"
+            f"Per-episode means | Welch t: t={t_stat:.3f}, p={p_t:.4f} → {'YES' if p_t < 0.05 else 'NO'}"
+        )
+
+        # ── Right: all steps ─────────────────────────────────────────────
+        for i, (all_vals, pair) in enumerate([(all_vals_a, pair_a), (all_vals_b, pair_b)]):
+            color = _get_color(*pair)
+            ax_right.vlines(i, np.min(all_vals), np.max(all_vals), color=color, linewidth=2)
+            ax_right.scatter([i] * len(all_vals), all_vals, color=color, s=10, zorder=4, alpha=0.3)
+            ax_right.scatter(i, np.mean(all_vals), color=color, s=120, zorder=5,
+                             marker='D', label=f"{_label(*pair)}\nmean={np.mean(all_vals):.3f}")
+
+        ax_right.plot([0, 1], [np.mean(all_vals_a), np.mean(all_vals_b)],
+                      color="gray", linewidth=1.5, linestyle="--", zorder=3)
+        ax_right.set_xticks([0, 1])
+        ax_right.set_xticklabels([_label(*pair_a), _label(*pair_b)], fontsize=8)
+        ax_right.set_xlim(-0.4, 1.4)
+        ax_right.set_ylabel("Loss (all steps)")
+        ax_right.set_ylim(bottom=0)
+        ax_right.legend(fontsize=7)
+        ax_right.set_title(
+            f"{frac_label} ({steps_info})\n"
+            f"All steps | Mann-Whitney U: p={p_mw:.4f} → {'YES' if p_mw < 0.05 else 'NO'}"
+        )
+
+    plt.tight_layout()
+    plt.savefig(out_name, dpi=150, bbox_inches="tight")
+    print(f"Saved {out_name}")
+    plt.close()
 
 # ---------------------------------------------------------------------------
 # Plotting helpers
@@ -500,21 +615,33 @@ if __name__ == "__main__":
     result = make_dicts(root_folder)
 
     #plot_diff_by_episode(result, comparisons=COMPARISONS)
-    plot_loss_by_episode(result, comparisons=COMPARISONS)
-    #plot_reward_by_episode(result, comparisons=COMPARISONS)
+#     plot_loss_by_episode(result, comparisons=COMPARISONS)
+#     #plot_reward_by_episode(result, comparisons=COMPARISONS)
 
-    if REPLACE_WITH_CLEAN: 
-        out_name = "clean_loss_ribbon_ttest.png"
+#     if REPLACE_WITH_CLEAN: 
+#         out_name = "clean_loss_ribbon_ttest.png"
+#     else:
+#         out_name = "loss_ribbon_ttest.png"
+
+#     plot_loss_ribbon_with_ttest(
+#     result,
+#     pair_a=("0.0", "right_ood"),
+#     pair_b=("0.0", "left_in_dist"),
+#     metric="loss",
+#     quantile_lines={"p75": 0.0744, "p99": 0.3233},
+#     out_name=out_name
+# )
+    if REPLACE_WITH_CLEAN:
+        out_late_steps_name = "clean_loss_late_steps.png"
     else:
-        out_name = "loss_ribbon_ttest.png"
+        out_late_steps_name = "loss_late_steps.png"
 
-    plot_loss_ribbon_with_ttest(
+    plot_loss_ribbon_late_steps(
     result,
     pair_a=("0.0", "right_ood"),
     pair_b=("0.0", "left_in_dist"),
     metric="loss",
-    quantile_lines={"p75": 0.0744, "p99": 0.3233},
-    out_name=out_name
+    out_name=out_late_steps_name,
 )
 
 
