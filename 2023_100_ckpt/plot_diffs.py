@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------------------------
 
 # NOTE: 
-REPLACE_WITH_CLEAN = False
+REPLACE_WITH_CLEAN = True
 
 CLEAN_EPISODES = {
     ("0.0", "right_ood") : [
@@ -229,6 +229,9 @@ def plot_loss_ribbon_late_steps(
         all_vals_a = all_vals_a[~np.isnan(all_vals_a)]
         all_vals_b = all_vals_b[~np.isnan(all_vals_b)]
 
+
+        min_b = np.min(all_vals_b) if len(all_vals_b) > 0 else float('nan')
+
         if len(all_vals_a) == 0 or len(all_vals_b) == 0:
             ax_left.set_title(f"{frac_label} — no data")
             ax_right.set_title(f"{frac_label} — no data")
@@ -256,7 +259,8 @@ def plot_loss_ribbon_late_steps(
         ax_left.legend(fontsize=7)
         ax_left.set_title(
             f"{frac_label} ({steps_info})\n"
-            f"Per-episode means | Welch t: t={t_stat:.3f}, p={p_t:.4f} → {'YES' if p_t < 0.05 else 'NO'}"
+            f"Per-episode means | Welch t: t={t_stat:.3f}, p={p_t:.4f} → {'YES' if p_t < 0.05 else 'NO'}\n"
+            f"min {label_b}={min_b:.4f}"
         )
 
         # ── Right: all steps ─────────────────────────────────────────────
@@ -277,7 +281,8 @@ def plot_loss_ribbon_late_steps(
         ax_right.legend(fontsize=7)
         ax_right.set_title(
             f"{frac_label} ({steps_info})\n"
-            f"All steps | Mann-Whitney U: p={p_mw:.4f} → {'YES' if p_mw < 0.05 else 'NO'}"
+            f"All steps | Mann-Whitney U: p={p_mw:.4f} → {'YES' if p_mw < 0.05 else 'NO'}\n"
+            f"min {label_b}={min_b:.4f}"
         )
 
     plt.tight_layout()

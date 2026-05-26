@@ -34,7 +34,7 @@ def main(args, outdir):
     # Set a random seed used in PFRL
     utils.set_random_seed(args.seed)
 
-    sample_env = make_env(args.env_name, test=False, seed=args.seed)
+    sample_env = make_env(args.env_name, test=False, seed=args.seed, control_frequency=args.control_frequency)
     # timestep_limit = sample_env.spec.max_episode_steps
     timestep_limit = TIME_LIMIT
 
@@ -44,11 +44,12 @@ def main(args, outdir):
 
     if args.demo:
         eval_stats = experiments.eval_performance(
-            env=make_env(args.env_name, test=True, seed=args.seed),
+            env=make_env(args.env_name, test=True, seed=args.seed, control_frequency=args.control_frequency),
             agent=agent,
             n_steps=None,
             n_episodes=args.eval_n_runs,
             max_episode_len=timestep_limit,
+            control_frequency=args.control_frequency
         )
         print(
             "n_runs: {} mean: {} median: {} stdev {}".format(
@@ -65,8 +66,8 @@ def main(args, outdir):
     else:
         experiments.train_agent_with_evaluation(
             agent=agent,
-            env=make_env(args.env_name, test=False, seed=args.seed),
-            eval_env=make_env(args.env_name, test=True, seed=args.seed),
+            env=make_env(args.env_name, test=False, seed=args.seed, control_frequency=args.control_frequency),
+            eval_env=make_env(args.env_name, test=True, seed=args.seed, control_frequency=args.control_frequency),
             outdir=outdir,
             checkpoint_freq=args.checkpoint_freq,
             steps=args.steps,
@@ -146,12 +147,20 @@ if __name__ == "__main__":
         default=20_000,
         help="Weight initialization scale of policy output.",
     )
+
+    parser.add_argument(
+    "--control-frequency",
+    type=float,
+    default=10.0,
+    help="Control frequency for the block pushing env.",
+    )
+    
     args = parser.parse_args()
 
     wandb.login()  # NOTE: You need to set envvar WANDB_API_KEY
     wandb.init(
         # Set the project where this run will be logged
-        project=f"pfrl-{args.env_name}",
+        project=f"pfrl-{args.env_name}-{int(args.control_frequency)}",
         config=vars(args),
     )
 
@@ -165,6 +174,7 @@ if __name__ == "__main__":
     outdir = (
         Path(Args.sac_model_dir)
         / args.env_name.lower()
+        / f"freq{int(args.control_frequency)}"
         / wandb.run.project
         / wandb.run.id
     )

@@ -175,12 +175,15 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
-        raw_to_which_side = "right_ood" # because left is baseline
-        trial_num = "extra_2"
+        raw_to_which_side = "left_in_dist" # because left is baseline
+        trial_num = "0525_mon"
 
         if save_csvs:
             subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
             os.makedirs(subdir_path, exist_ok=True)
+
+            data_subdir_path = subdir_path / "data"
+            os.makedirs(data_subdir_path, exist_ok=True)
 
         # columns of the csv is as follows: episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
@@ -230,6 +233,10 @@ if __name__ == '__main__':
         assisted_action_x = []; assisted_action_y = []
         which_side = []
 
+        obs_block_x = []; obs_block_y = []; obs_block_ori = []
+        obs_ee_x = []; obs_ee_y = []
+        obs_ee_target_x = []; obs_ee_target_y = []
+
         # # save as gif
         # frames = []
 
@@ -237,7 +244,7 @@ if __name__ == '__main__':
         episode_losses=[]
 
         # load human demonstrator
-        for ep in range(1, 11):
+        for ep in range(1, 3):
             # NOTE: change this number
 
             if draw_trajs:
@@ -300,6 +307,14 @@ if __name__ == '__main__':
                 # 8th column: assisted action - take [1]
                 assisted_action_x.append(assisted_action.copy()[0])
                 assisted_action_y.append(assisted_action.copy()[1])
+
+                obs_block_x.append(ob[0])
+                obs_block_y.append(ob[1])
+                obs_block_ori.append(ob[2])
+                obs_ee_x.append(ob[3])
+                obs_ee_y.append(ob[4])
+                obs_ee_target_x.append(ob[5])
+                obs_ee_target_y.append(ob[6])
 
                 """
                 Diffdagger highlight!!
@@ -472,6 +487,22 @@ if __name__ == '__main__':
 
                 })
                 df.to_csv(csv_full_path, index = False)
+
+                # actual data
+                csv_name = "episode_" + str(ep) + ".csv"
+                actual_data_full_path = data_subdir_path / csv_name
+                data_df = pd.DataFrame({
+                    "block_x": obs_block_x,
+                    "block_y": obs_block_y,
+                    "block_ori": obs_block_ori,
+                    "ee_x": obs_ee_x,
+                    "ee_y": obs_ee_y,
+                    "ee_tgt_x": obs_ee_target_x,
+                    "ee_tgt_y": obs_ee_target_y,
+                    "raw_action_x": raw_input_action_x,
+                    "raw_action_y": raw_input_action_y
+                })
+                data_df.to_csv(actual_data_full_path, index = False)
 
                 # NOTE
                 imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 

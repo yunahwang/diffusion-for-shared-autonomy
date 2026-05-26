@@ -13,7 +13,7 @@ class Spec:
         self.name = name
 
 
-def make_env(env_name, test, seed=0, terminate_at_any_goal=False, split_obs=False, user_goal='target', **kwargs):
+def make_env(env_name, test, seed=0, terminate_at_any_goal=False, split_obs=False, user_goal='target', control_frequency = 10.0, **kwargs):
     if split_obs:
         assert "maze" not in env_name
 
@@ -54,7 +54,7 @@ def make_env(env_name, test, seed=0, terminate_at_any_goal=False, split_obs=Fals
 
     else:
         # for block pushing task
-        env = gym.make('BlockPushMultimodal-v1', user_goal=user_goal)
+        env = gym.make('BlockPushMultimodal-v1', user_goal=user_goal, control_frequency=control_frequency)
         # import pdb; pdb.set_trace()
         time_limit = 200
 
