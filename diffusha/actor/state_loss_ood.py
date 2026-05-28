@@ -60,28 +60,72 @@ def get_states(dataset_folder):
     return states
 
 def plot_histogram():
-    base = Path(__file__).parents[1]
-    ood_path   = base / 'ood_losses_output_5_sampling.csv'
-    train_path = base / 'state_losses_output_5_sampling.csv'
+    base = Path(__file__).parents[2]
 
-    ood_df   = pd.read_csv(ood_path)
-    train_df = pd.read_csv(train_path)
-
-    # flatten all action columns across all rows into one array each
-    ood_losses   = ood_df.values.flatten()
-    train_losses = train_df.values.flatten()
+    # NOTE: add/change folder paths here - each folder gets its own color/label
+    folder_configs = [
+        {
+            "folder": base / "2023_100_ckpt" / "0.0" / "left_in_dist" / "trial_0528_thur_state_ood",
+            "label": "Train (in-distribution)",
+            "color": "steelblue",
+        },
+        {
+            "folder": base / "2023_100_ckpt" / "0.0" / "right_ood" / "trial_0528_thur_state_ood",
+            "label": "OOD (flipped)",
+            "color": "tomato",
+        },
+    ]
 
     plt.figure(figsize=(8, 5))
-    plt.hist(train_losses, bins=50, alpha=0.6, label='Train (in-distribution)', color='steelblue')
-    plt.hist(ood_losses,   bins=50, alpha=0.6, label='OOD (flipped)',           color='tomato')
+
+    for config in folder_configs:
+        folder = config["folder"]
+        csv_files = sorted(folder.glob("episode_2.csv"))
+        if not csv_files:
+            print(f"No episode_*.csv found in {folder}")
+            continue
+
+        all_losses = []
+        for csv_file in csv_files:
+            df = pd.read_csv(csv_file)
+            all_losses.extend(df["loss"].values.tolist())
+
+        plt.hist(all_losses, bins=50, alpha=0.6, label=config["label"], color=config["color"])
+        print(f"{config['label']}: {len(all_losses)} steps across {len(csv_files)} episodes")
+
     plt.xlabel('Noise Estimation Loss')
     plt.ylabel('Count')
     plt.title('Loss Distribution: In-Distribution vs OOD')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(base / 'state_compare_histogram.png', dpi=150)
-    #plt.show()
-    print(f"Histogram saved to {base / 'state_compare_histogram.png'}")
+    plt.savefig(base / 'js_state_compare_histogram.png', dpi=150)
+    plt.show()
+    print(f"Histogram saved to {base / 'js_state_compare_histogram.png'}")
+
+# def plot_histogram():
+#     # NOTE: can change
+#     base = Path(__file__).parents[1]
+#     ood_path   = base / 'ood_losses_output_5_sampling.csv'
+#     train_path = base / 'state_losses_output_5_sampling.csv'
+
+#     ood_df   = pd.read_csv(ood_path)
+#     train_df = pd.read_csv(train_path)
+
+#     # flatten all action columns across all rows into one array each
+#     ood_losses   = ood_df.values.flatten()
+#     train_losses = train_df.values.flatten()
+
+#     plt.figure(figsize=(8, 5))
+#     plt.hist(train_losses, bins=50, alpha=0.6, label='Train (in-distribution)', color='steelblue')
+#     plt.hist(ood_losses,   bins=50, alpha=0.6, label='OOD (flipped)',           color='tomato')
+#     plt.xlabel('Noise Estimation Loss')
+#     plt.ylabel('Count')
+#     plt.title('Loss Distribution: In-Distribution vs OOD')
+#     plt.legend()
+#     plt.tight_layout()
+#     plt.savefig(base / 'state_compare_histogram.png', dpi=150)
+#     #plt.show()
+#     print(f"Histogram saved to {base / 'state_compare_histogram.png'}")
 
 def main(dataset_folder):
     from diffusha.actor.assistive import DiffusionAssistedActor

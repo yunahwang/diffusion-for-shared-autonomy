@@ -75,11 +75,11 @@ class JoystickDiffDaggerActor(Actor):
                 v = 0.0 if abs(event.value) < DEADZONE else event.value
 
                 if event.axis == UP_AXIS:
-                    print("up/down")
+                    # print("up/down")
                     self.human_agent_action[1] = -1 * v
 
                 elif event.axis == SIDE_AXIS:
-                    print("left/right")
+                    # print("left/right")
                     self.human_agent_action[0] = v
 
         return self.human_agent_action
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     # NOTE - change the following lines
     # TODO - may make it into an argument
-    draw_trajs = True
+    draw_trajs = False
     save_csvs = True
 
     shape = "linear" # other option: "sigmoid"
@@ -175,8 +175,8 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
-        raw_to_which_side = "left_in_dist" # because left is baseline
-        trial_num = "0525_mon"
+        raw_to_which_side = "right_ood" # because left is baseline
+        trial_num = "0528_thur_state_ood"
 
         if save_csvs:
             subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
@@ -195,7 +195,8 @@ if __name__ == '__main__':
             model_dir,
             29999,
             env_name,
-            fwd_diff_ratio,
+            1.0,
+            #fwd_diff_ratio,
             laggy_actor_repeat_prob,
             noisy_actor_eps
         )
@@ -208,7 +209,8 @@ if __name__ == '__main__':
             act_space = act_space,
             diffusion = diffusion,
             behavioral_actor = None,
-            fwd_diff_ratio = fwd_diff_ratio
+            #fwd_diff_ratio = fwd_diff_ratio
+            fwd_diff_ratio=1.0
         )   
 
         print(assisted_actor)
@@ -250,11 +252,12 @@ if __name__ == '__main__':
             if draw_trajs:
                 #gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
                 gif_name = "episode_" + str(ep) + ".gif"
+                gif_full_path = subdir_path / gif_name
 
             if save_csvs:
                 csv_name = "episode_" + str(ep) + ".csv"
                 csv_full_path = subdir_path / csv_name
-                gif_full_path = subdir_path / gif_name
+                
 
             ob = env.reset()
             
@@ -317,15 +320,27 @@ if __name__ == '__main__':
                 obs_ee_target_y.append(ob[6])
 
                 """
-                Diffdagger highlight!!
+                Diffdagger highlight!! + state ood loss first!
                 """
                 # Call diffdagger loss
                 # Build x_0_single from current ob and raw_action
-                ob_tensor     = torch.tensor(ob.copy(), dtype=torch.float32).unsqueeze(0)   # (1, 7)
-                action_tensor = torch.tensor(raw_action,  dtype=torch.float32).unsqueeze(0) # (1, 2)
-                x_0_single    = torch.cat([ob_tensor, action_tensor], dim=-1)               # (1, 9)
+                # ob_tensor     = torch.tensor(ob.copy(), dtype=torch.float32).unsqueeze(0)   # (1, 7)
+                # #action_tensor = torch.tensor(raw_action,  dtype=torch.float32).unsqueeze(0) # (1, 2)
+                # x_0_single    = torch.cat([ob_tensor, action_tensor], dim=-1)               # (1, 9)
+                ob_np = np.array(ob[:7], dtype=np.float32)
+                raw_action_np = np.array(raw_action, dtype=np.float32)
+                
+                sampled_losses = []
+                for _ in range(5):
+                    sampled_action, _ = assisted_actor.act_without_env(ob_np, raw_action_np, report_diff=True)
+                    #print("sampled_action, ", sampled_action)
+                    state_for_loss = np.concatenate([ob_np, sampled_action])
+                    x_0_single = torch.tensor(state_for_loss, dtype = torch.float32).unsqueeze(0)
+                    sampled_losses.append(noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512))
 
-                nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
+                nb_loss = float(np.mean(sampled_losses))
+
+                # nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
                 print("nb_loss", nb_loss)
                 loss_log.append(nb_loss)
                 losses.append(nb_loss)
@@ -344,7 +359,7 @@ if __name__ == '__main__':
                     sigma_med = fifty_percentile_value
                     gamma = compute_sigmoid_gamma(nb_loss, sigma_med)
 
-                print(f"loss: {nb_loss}, gamma: {gamma}")
+                #print(f"loss: {nb_loss}, gamma: {gamma}")
 
                 if shape_save:
                     dyn_gammas.append(gamma)
@@ -442,7 +457,7 @@ if __name__ == '__main__':
                 which_side.append(np.nan)
 
                 # ob, r, done, _ = env.step(raw_action)
-                ob, r, done, info = env.step(assisted_action) # NOTE - when 0.0 show raw_action
+                ob, r, done, info = env.step(raw_action) # NOTE - when 0.0 show raw_action
                 #print("done, ", done)
                 reward += r
                 step_i += 1
@@ -504,6 +519,7 @@ if __name__ == '__main__':
                 })
                 data_df.to_csv(actual_data_full_path, index = False)
 
+            if draw_trajs:
                 # NOTE
                 imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
 
