@@ -10,6 +10,7 @@ import json
 import numpy as np
 import torch
 import time
+import matplotlib.pyplot as plt
 
 FWD_DIFF_RATIO = 1.0
 ACTION_SAMPLING_NUM = 5 # NOTE: you can tune
@@ -57,6 +58,30 @@ def get_states(dataset_folder):
         for row in df.itertuples(index = False):
             states.append(row[0:9])
     return states
+
+def plot_histogram():
+    base = Path(__file__).parents[1]
+    ood_path   = base / 'ood_losses_output_5_sampling.csv'
+    train_path = base / 'state_losses_output_5_sampling.csv'
+
+    ood_df   = pd.read_csv(ood_path)
+    train_df = pd.read_csv(train_path)
+
+    # flatten all action columns across all rows into one array each
+    ood_losses   = ood_df.values.flatten()
+    train_losses = train_df.values.flatten()
+
+    plt.figure(figsize=(8, 5))
+    plt.hist(train_losses, bins=50, alpha=0.6, label='Train (in-distribution)', color='steelblue')
+    plt.hist(ood_losses,   bins=50, alpha=0.6, label='OOD (flipped)',           color='tomato')
+    plt.xlabel('Noise Estimation Loss')
+    plt.ylabel('Count')
+    plt.title('Loss Distribution: In-Distribution vs OOD')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(base / 'state_compare_histogram.png', dpi=150)
+    #plt.show()
+    print(f"Histogram saved to {base / 'state_compare_histogram.png'}")
 
 def main(dataset_folder):
     from diffusha.actor.assistive import DiffusionAssistedActor
@@ -123,16 +148,19 @@ def main(dataset_folder):
     losses_all_state,
     columns=[f'action_{j}' for j in range(ACTION_SAMPLING_NUM)]
     )
-    csv_path = Path(__file__).parents[1] / 'state_losses_output_5_sampling.csv' #NOTE
+    csv_path = Path(__file__).parents[1] / 'ood_losses_output_5_sampling.csv' #NOTE
     df.to_csv(csv_path, index=False)
 
 if __name__ == "__main__":
-    folder = Path(sys.argv[1])
-    # if training dataset - "orig", if ood dataset - "flipped"
-    if "orig" in folder.name:
-        dataset_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
-    elif "flipped" in folder.name:
-        dataset_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "target-flipped" / "realsies_2023_flipped_csv_backup_100" 
-    
-    
-    main(dataset_folder)
+    if len(sys.argv) < 2:
+        plot_histogram()
+    else:
+        folder = Path(sys.argv[1])
+        # if training dataset - "orig", if ood dataset - "flipped"
+        if "orig" in folder.name:
+            dataset_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "orig_2023_csv_backup"
+        elif "flipped" in folder.name or "ood" in folder.name:
+            dataset_folder = Path(__file__).parents[2] / "data-dir" / "replay" / "blockpush" / "target-flipped" / "realsies_2023_flipped_csv_backup_100" 
+        
+        
+        main(dataset_folder)
