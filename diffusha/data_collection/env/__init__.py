@@ -77,6 +77,7 @@ def make_env(env_name, test, seed=0, terminate_at_any_goal=False, split_obs=Fals
         #     # Mirror the observation so that the scene looks identical to user_goal=='target' for the policy
         #     env = BlockPushMirrorObsWrapper(env)
 
+        print("!here!")
         env = BlockPushExpandObsWrapper(env)
     else:
         raise "Unexpected Env Name"

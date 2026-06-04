@@ -14,9 +14,9 @@ class ConditionalLinear(nn.Module):
         self.embed.weight.data.uniform_()
 
     def forward(self, x, y):
-        out = self.lin(x)
-        gamma = self.embed(y)
-        out = gamma.view(-1, self.num_out) * out
+        out = self.lin(x) # (9, 128) -> (1, 128)
+        gamma = self.embed(y)  # lookup row t: from (50, 128) -> (1, 128)
+        out = gamma.view(-1, self.num_out) * out  # (1, 128) * (1, 128) -> (1, 128)
         return out
 
 
