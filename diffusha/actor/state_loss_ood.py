@@ -12,6 +12,36 @@ import torch
 import time
 import matplotlib.pyplot as plt
 
+
+def load_train_losses(csv_path=None):
+    """Load pre-computed train losses from the CSV, return per-state mean."""
+    if csv_path is None:
+        csv_path = Path(__file__).parents[1] / 'ood_losses_output_5_sampling.csv'
+    df = pd.read_csv(csv_path)
+    # average across the ACTION_SAMPLING_NUM columns → one scalar per state
+    return df.mean(axis=1).values  # shape: (N,)
+
+
+def quantile_analysis(train_csv_path, ood_csv_path):
+    quantiles = [25, 50, 75, 99]
+
+    train_df = pd.read_csv(train_csv_path)
+    ood_df   = pd.read_csv(ood_csv_path)
+
+    # average across action sample columns → one scalar per state
+    train_losses = train_df.mean(axis=1).values
+    ood_losses   = ood_df.mean(axis=1).values
+
+    train_q = np.percentile(train_losses, quantiles)
+    ood_q   = np.percentile(ood_losses,   quantiles)
+
+    print(f"{'quantile':<12} {'train':>10} {'ood':>10}")
+    print("-" * 34)
+    for q, t, o in zip(quantiles, train_q, ood_q):
+        print(f"p{q:<11} {t:>10.4f} {o:>10.4f}")
+
+    return train_q, ood_q
+
 FWD_DIFF_RATIO = 1.0
 ACTION_SAMPLING_NUM = 5 # NOTE: you can tune
 
@@ -102,30 +132,6 @@ def plot_histogram():
     plt.show()
     print(f"Histogram saved to {base / 'js_state_compare_histogram.png'}")
 
-# def plot_histogram():
-#     # NOTE: can change
-#     base = Path(__file__).parents[1]
-#     ood_path   = base / 'ood_losses_output_5_sampling.csv'
-#     train_path = base / 'state_losses_output_5_sampling.csv'
-
-#     ood_df   = pd.read_csv(ood_path)
-#     train_df = pd.read_csv(train_path)
-
-#     # flatten all action columns across all rows into one array each
-#     ood_losses   = ood_df.values.flatten()
-#     train_losses = train_df.values.flatten()
-
-#     plt.figure(figsize=(8, 5))
-#     plt.hist(train_losses, bins=50, alpha=0.6, label='Train (in-distribution)', color='steelblue')
-#     plt.hist(ood_losses,   bins=50, alpha=0.6, label='OOD (flipped)',           color='tomato')
-#     plt.xlabel('Noise Estimation Loss')
-#     plt.ylabel('Count')
-#     plt.title('Loss Distribution: In-Distribution vs OOD')
-#     plt.legend()
-#     plt.tight_layout()
-#     plt.savefig(base / 'state_compare_histogram.png', dpi=150)
-#     #plt.show()
-#     print(f"Histogram saved to {base / 'state_compare_histogram.png'}")
 
 def main(dataset_folder):
     from diffusha.actor.assistive import DiffusionAssistedActor
@@ -193,7 +199,17 @@ def main(dataset_folder):
     columns=[f'action_{j}' for j in range(ACTION_SAMPLING_NUM)]
     )
     csv_path = Path(__file__).parents[1] / 'ood_losses_output_5_sampling.csv' #NOTE
-    df.to_csv(csv_path, index=False)
+    try:
+        df.to_csv(csv_path, index=False)
+    except FileExistsError: 
+        pass
+
+    base = Path(__file__).parents[1]
+
+    train_csv = base / "state_losses_output_5_sampling.csv"   # NOTE: adjust filename
+    ood_csv   = base / "ood_losses_output_5_sampling.csv"
+
+    quantile_analysis(train_csv, ood_csv)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

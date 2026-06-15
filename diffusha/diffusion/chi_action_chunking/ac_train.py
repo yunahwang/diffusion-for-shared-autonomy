@@ -12,14 +12,12 @@ from diffusha.diffusion.chi_action_chunking.ac_dataset import *
 from diffusha.config.default_args import Args
 import wandb
 
-# from diffusha.diffusion.chi_action_chunking.ac_ddpm import(
-#     DiffusionCore,
-#     DiffusionModel,
-#     Trainer
-# )
+from diffusha.diffusion.chi_action_chunking.ac_ddpm import(
+    DiffusionCore,
+    DiffusionModel,
+    Trainer
+)
 
-T_A = 4
-N_ACTION_STEPS = 4
 
 OBS_COLS = [
     "block_x", "block_y", "block_ori",
@@ -28,9 +26,15 @@ OBS_COLS = [
 ]
 ACT_COLS = ["action_x", "action_y"]
 
+OBS_HORIZON = 3 # NOTE: Disco does this
+
+# NOTE: BUT, in actual shared autonomy situations seqs will be a lot longer, so this needs tuning
+ACTUAL_ACTION_EXECUTION = 2 # NOTE: because our expert action sequences are a lot shorter (len 8 ~ 12)
+PREDICTION_HORIZON = 4
+
 class ExpertTransitionDataset(IterableDataset):
     def __init__(
-        self, directory, state_dim, action_dim, new_state_dim: int = 0, action_chunk_size: int = T_A,
+        self, directory, state_dim, action_dim, new_state_dim: int = 0,
         obs_cols: list = OBS_COLS, act_cols: list = ACT_COLS
     ) -> None:
         super().__init__()
@@ -38,13 +42,15 @@ class ExpertTransitionDataset(IterableDataset):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.new_state_dim = new_state_dim
-        self.Ta = action_chunk_size
+        self.Ta = PREDICTION_HORIZON
+        self.To = OBS_HORIZON
 
         self.buffer = EpisodeCSVBuffer(
             data_dirs=directory,
             obs_cols=obs_cols,
             act_cols=act_cols,
-            action_chunk_size=action_chunk_size,
+            action_chunk_size=self.Ta,
+            obs_size=self.To
         )
 
     def __iter__(self):
@@ -84,20 +90,23 @@ def main():
     # get just one sample
     sample = next(iter(dataset))
     print(sample)
-    print(sample.shape)  # should be (obs_dim + act_dim * Ta,) = (7 + 2*4,) = (15,)
+    print(sample.shape)  # should be (obs_dim * To + act_dim * Ta,) = (7*3 + 2*4,) = (29,)
 
-    # loader = iter(DataLoader(dataset, batch_size=Args.batch_size, num_workers=8))
+    loader = iter(DataLoader(dataset, batch_size=Args.batch_size, num_workers=8))
 
-    # diffusion = DiffusionModel(
-    #     # diffusion_core=DiffusionCore(small_noise_dim=copilot_obs_size, obs_noise_level=Args.obs_noise_level, obs_noise_cfg_prob=Args.obs_noise_cfg_prob),
-    #     diffusion_core=DiffusionCore(),
-    #     num_diffusion_steps=Args.num_diffusion_steps,
-    #     input_size=(copilot_obs_size + act_size),
-    #     beta_schedule=Args.beta_schedule,
-    #     beta_min=Args.beta_min,
-    #     beta_max=Args.beta_max,
-    #     cond_dim=copilot_obs_size,
-    # )
+    diffusion = DiffusionModel(
+        # diffusion_core=DiffusionCore(small_noise_dim=copilot_obs_size, obs_noise_level=Args.obs_noise_level, obs_noise_cfg_prob=Args.obs_noise_cfg_prob),
+        diffusion_core=DiffusionCore(),
+        num_diffusion_steps=Args.num_diffusion_steps,
+        #input_size=(copilot_obs_size + act_size),
+        input_size = act_size,
+        obs_feature_dim = copilot_obs_size,
+        n_obs_steps = OBS_HORIZON,
+        beta_schedule=Args.beta_schedule,
+        beta_min=Args.beta_min,
+        beta_max=Args.beta_max,
+        cond_dim=copilot_obs_size,
+    )
 
     # trainer = Trainer(
     #     diffusion,
