@@ -26,7 +26,6 @@ from pathlib import Path
 import os
 import time
 
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -36,6 +35,10 @@ from diffusha.diffusion.evaluation.helper import prepare_diffusha
 
 # from diffusha.diffdagger.diffdagger_loss import DaggerLoss
 from diffusha.actor.loss_dist_ood import noise_estimation_loss_nb_infer
+
+import sys
+sys.path.append(str(Path(__file__).parents[2] / "DiffDAgger"))
+from diffdagger.util.cdf import CDF
 
 #####################################
 # Change these to match your joystick
@@ -123,6 +126,17 @@ def compute_sigmoid_gamma(
     z = (loss - sigma_med) / sigma_scale
     s = 1.0 / (1.0 + np.exp(z))
     return gamma_min + s * (gamma_max - gamma_min)
+
+def build_cdfs():
+    """Build CDF objects from the reference CSV files."""
+    state_csv_path = Path(__file__).parents[1] / "data_collection" / "state_losses_output_5_sampling.csv"
+    ood_csv_path   = Path(__file__).parents[1] / "data_collection" / "flipped(ood)_vs_2023_100_1824.csv"
+
+    # average across action sample columns → one loss scalar per state
+    state_ref_losses  = pd.read_csv(state_csv_path).mean(axis=1).values
+    action_ref_losses = pd.read_csv(ood_csv_path).mean(axis=1).values
+
+    return CDF(state_ref_losses), CDF(action_ref_losses)
 
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
@@ -361,9 +375,22 @@ if __name__ == '__main__':
                 action_losses.append(action_loss)
 
                 """
-                Compute correct gamma as per diffdagger loss
+                GET QUANTILE VALUES from each state and action loss
                 """
-                # FIRST GET CDF OF EACH
+                # build once before the loop
+                state_cdf, action_cdf = build_cdfs()
+
+                # ... inside the loop, after computing state_loss and action_loss ...
+                state_percentile  = float(state_cdf(state_loss))
+                action_percentile = float(action_cdf(action_loss))
+
+                print(f"state_loss:  {state_loss:.4f}  → CDF percentile: {state_percentile:.3f}")
+                print(f"action_loss: {action_loss:.4f}  → CDF percentile: {action_percentile:.3f}")
+
+                """
+                Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
+                """
+                
 
                     # TODO: create helper function for plotting losses against gammas
 
