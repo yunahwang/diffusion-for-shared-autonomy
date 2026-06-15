@@ -266,7 +266,7 @@ if __name__ == '__main__':
         state_cdf, action_cdf = build_cdfs()
 
         # load human demonstrator
-        for ep in range(1, 3):
+        for ep in range(1, 11):
             # NOTE: change this number
 
             if draw_trajs:
@@ -296,6 +296,8 @@ if __name__ == '__main__':
             frames = []
 
             traj_ids     = {"raw": [], "assisted": []}
+
+            patience_count = 0
 
             #plt.show(block = False)
 
@@ -391,8 +393,31 @@ if __name__ == '__main__':
                 Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
                 """
                 percentile_mult = state_percentile * action_percentile
-                current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
-                print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
+
+                # NOTE. ver1 - vanilla. without any patience term so instant reaction. still doesn't accept ood-direction behavior very well
+                #current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
+                #print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
+
+                # ver2 - both losses over some threshold, patience of two steps in a row, ratio either 0.0 or 1.0
+                PATIENCE_THRESHOLD = 2
+                STATE_THRESH = 0.7
+                ACTION_THRESH = 0.7
+
+                both_ood = (state_percentile >= STATE_THRESH) and (action_percentile >= ACTION_THRESH)
+
+                if both_ood:
+                    patience_count += 1
+                    if patience_count >= PATIENCE_THRESHOLD:
+                        current_fwd_diff_ratio = 0.0
+                else:
+                    patience_count = 0  # reset if either drops back below threshold
+                    current_fwd_diff_ratio = 1.0
+
+                print(f"patience: {patience_count}, fwd_diff_ratio: {current_fwd_diff_ratio:.2f}")
+
+                # TODO - ver3 - have in-between values and not just 0.0 and 1.0
+
+
 
                 if draw_trajs:
                     ax.clear()
