@@ -131,8 +131,9 @@ if __name__ == '__main__':
 
     # NOTE - change the following lines
     # TODO - may make it into an argument
-    draw_trajs = False
-    save_csvs = True
+    draw_trajs = True
+    save_trajs = False
+    save_csvs = False
 
     shape = "linear" # other option: "sigmoid"
     shape_save = True
@@ -178,8 +179,10 @@ if __name__ == '__main__':
         raw_to_which_side = "right_ood" # because left is baseline
         trial_num = "0528_thur_state_ood"
 
+        subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
+
+
         if save_csvs:
-            subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
             os.makedirs(subdir_path, exist_ok=True)
 
             data_subdir_path = subdir_path / "data"
@@ -230,7 +233,7 @@ if __name__ == '__main__':
         # columns of the csv is as follows: 
         # episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
-        eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []; losses = []
+        eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []; state_losses = []; action_losses = []
         raw_input_action_x = []; raw_input_action_y = []
         assisted_action_x = []; assisted_action_y = []
         which_side = []
@@ -268,7 +271,8 @@ if __name__ == '__main__':
             ee_log = []
             raw_log      = []
             assisted_log = []
-            loss_log = []
+            loss_log_state = []
+            loss_log_action = []
             ob_log = []
             ob_action_log = []
 
@@ -338,31 +342,28 @@ if __name__ == '__main__':
                     x_0_single = torch.tensor(state_for_loss, dtype = torch.float32).unsqueeze(0)
                     sampled_losses.append(noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512))
 
-                nb_loss = float(np.mean(sampled_losses))
+                state_loss = float(np.mean(sampled_losses))
 
                 # nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
-                print("nb_loss", nb_loss)
-                loss_log.append(nb_loss)
-                losses.append(nb_loss)
+                print("state_loss", state_loss)
+                loss_log_state.append(state_loss)
+                state_losses.append(state_loss)
+
+                """
+                Diffdagger mod part 2 - action ood loss
+                """
+                ob_tensor = torch.tensor(ob, dtype = torch.float32).unsqueeze(0)
+                raw_action_tensor = torch.tensor(raw_action, dtype = torch.float32).unsqueeze(0)
+                x_0 = torch.cat([ob_tensor, raw_action_tensor], dim = -1)
+                action_loss = noise_estimation_loss_nb_infer(diffusion, x_0, obs_size=7, Nb=512)
+                print("action_loss, ", action_loss)
+                loss_log_action.append(action_loss)
+                action_losses.append(action_loss)
 
                 """
                 Compute correct gamma as per diffdagger loss
                 """
-                dyn_gammas = []
-                if shape == "linear":
-                    ninetyfive_percentile_value = 0.3233
-                    loss_cap = ninetyfive_percentile_value
-                    gamma = compute_linear_gamma(nb_loss, loss_cap=loss_cap)
-
-                elif shape == "sigmoid":
-                    fifty_percentile_value = 0.0378
-                    sigma_med = fifty_percentile_value
-                    gamma = compute_sigmoid_gamma(nb_loss, sigma_med)
-
-                #print(f"loss: {nb_loss}, gamma: {gamma}")
-
-                if shape_save:
-                    dyn_gammas.append(gamma)
+                # FIRST GET CDF OF EACH
 
                     # TODO: create helper function for plotting losses against gammas
 
@@ -375,7 +376,7 @@ if __name__ == '__main__':
                     if ax_loss_r is not None:
                         ax_loss_r.remove()
 
-                    ax_loss.plot(loss_log, 'purple', linewidth=2)
+                    ax_loss.plot(loss_log_state, 'purple', linewidth=2)
                     ax_loss.set_xlim(0,100)
                     ax_loss.set_title('noise estimation loss')
                     #ax_loss.set_xlabel('step')
@@ -383,10 +384,13 @@ if __name__ == '__main__':
 
                     # Quantile reference lines
                     quantiles = {
+                        # NOTE. ACTION ood
                         # 'p25': 0.0204,
                         # 'p50': 0.0378,
-                        'p75': 0.0744,
-                        'p99': 0.3233,
+                        # 'p75': 0.0744,
+                        # 'p99': 0.3233,
+                        'p75': 0.0964, 
+                        'p99': 0.1747
                     }
                     for label, val in quantiles.items():
                         ax_loss.axhline(y=val, color='blue', linestyle=':', linewidth=0.8, label=f'train {label}={val:.4f}')
@@ -474,7 +478,7 @@ if __name__ == '__main__':
 
                 time.sleep(0.1) # NOTE - don't do this for gamma 0.0s
             
-            episode_losses.append(loss_log.copy())
+            #episode_losses.append(loss_log_state.copy())
 
             print("episode reward: ", reward)
             if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
@@ -492,7 +496,7 @@ if __name__ == '__main__':
                     "which_goal": which_side,
                     "steps_accum": steps_accum,
                     "reward": rewards,
-                    "loss": losses, 
+                    # "loss": losses, 
                     "diff": diffs,
                     "raw_input_action_x": raw_input_action_x,
                     "raw_input_action_y": raw_input_action_y,
@@ -519,7 +523,7 @@ if __name__ == '__main__':
                 })
                 data_df.to_csv(actual_data_full_path, index = False)
 
-            if draw_trajs:
+            if save_trajs:
                 # NOTE
                 imageio.mimsave(gif_full_path, frames, fps = 2) # fps = 2 is matching time.sleep(0.5), this is equiv to time.sleep(1) 
 

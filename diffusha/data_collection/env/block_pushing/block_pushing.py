@@ -198,7 +198,7 @@ class BlockPush(gym.Env):
     self._task = task
     
     self._connection_mode = pybullet.DIRECT
-    #self._connection_mode = pybullet.GUI
+    self._connection_mode = pybullet.GUI
     if shared_memory:
       self._connection_mode = pybullet.SHARED_MEMORY
 
