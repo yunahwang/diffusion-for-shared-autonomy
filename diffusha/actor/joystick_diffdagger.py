@@ -262,6 +262,9 @@ if __name__ == '__main__':
         ax_loss_r = None
         episode_losses=[]
 
+        current_fwd_diff_ratio = 1.0
+        state_cdf, action_cdf = build_cdfs()
+
         # load human demonstrator
         for ep in range(1, 3):
             # NOTE: change this number
@@ -310,7 +313,8 @@ if __name__ == '__main__':
 
                 ob_action_log.append(np.concatenate([ob[:7], raw_action]))
 
-                # TODO - should now arbitrate between different fwd_diff_ratio, so, based on loss quantiles then should i create new assisted actors everytime
+                # use last step's ratio for this step's action
+                assisted_actor.fwd_diff_ratio = current_fwd_diff_ratio
                 assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
                 #print("assisted_action, ", assisted_action, flush=True)
 
@@ -377,10 +381,6 @@ if __name__ == '__main__':
                 """
                 GET QUANTILE VALUES from each state and action loss
                 """
-                # build once before the loop
-                state_cdf, action_cdf = build_cdfs()
-
-                # ... inside the loop, after computing state_loss and action_loss ...
                 state_percentile  = float(state_cdf(state_loss))
                 action_percentile = float(action_cdf(action_loss))
 
@@ -390,9 +390,9 @@ if __name__ == '__main__':
                 """
                 Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
                 """
-                
-
-                    # TODO: create helper function for plotting losses against gammas
+                percentile_mult = state_percentile * action_percentile
+                current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
+                print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
 
                 if draw_trajs:
                     ax.clear()
@@ -484,11 +484,9 @@ if __name__ == '__main__':
                 eps.append(ep)
 
                 # 2nd col: which_side
-
                 which_side.append(np.nan)
 
-                # ob, r, done, _ = env.step(raw_action)
-                ob, r, done, info = env.step(raw_action) # NOTE - when 0.0 show raw_action
+                ob, r, done, info = env.step(assisted_action) # NOTE - when 0.0 show raw_action
                 #print("done, ", done)
                 reward += r
                 step_i += 1
@@ -500,10 +498,10 @@ if __name__ == '__main__':
                 rewards.append(reward)
 
                 # last col: gamma
-                gammas.append(fwd_diff_ratio)
+                gammas.append(current_fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                time.sleep(0.1) # NOTE - don't do this for gamma 0.0s
+                #time.sleep(0.1) # NOTE - don't do this for gamma 0.0s
             
             #episode_losses.append(loss_log_state.copy())
 
