@@ -1,16 +1,36 @@
 import pandas as pd
 import numpy as np
+import pickle
 
 from pathlib import Path
 import sys
 
-def compute_theta_dir(dir_full_path):
+def compute_theta_dir(dir_full_path, which_metric):
 
     sample = dict()
     csv_paths = sorted(Path(dir_full_path).glob("*.csv"))
 
+    first_val_idx, second_val_idx = None, None
+
+    print("which_metric, ",which_metric)
+
+    # NOTE: recall that the eps directory csv columns are as:
+    # episode,file,step, (0 ~ 2)
+    # block_x,block_y,block_ori, (3 ~ 5)
+    # ee_x,ee_y,ee_target_x,ee_target_y, (6 ~ 9)
+    # action_x,action_y, (10 ~ 11)
+
+
+    if which_metric == "ee":
+        first_val_idx = 6
+        second_val_idx = 7
+    else: # which_metric == "action"
+        first_val_idx = 10
+        second_val_idx = 11
+
     for j, csv in enumerate(csv_paths):
-        #print("j, ", j)
+        if j % 10 == 0:
+            print(f"at {j}-th csv out of 100")
 
         csv_dict_key_name = "csv" + str(j)
         sample[csv_dict_key_name] = dict()
@@ -35,45 +55,45 @@ def compute_theta_dir(dir_full_path):
             prev_x, prev_y = None, None
 
             for row in ep_df.itertuples(index = False):
-                ee_x = row[3]
-                ee_y = row[4]
+
+                # can USE ACTION too
+                x = row[first_val_idx]
+                y = row[second_val_idx]
 
                 if prev_x is not None:
-                    dx = ee_x - prev_x
-                    dy = ee_y - prev_y
-                    per_point_theta = np.arctan2(dx, dy)
-
+                    dx = x - prev_x
+                    dy = y - prev_y
                     # per_point, incremental
-                    print("***PER POINT***")
-                    print("x, y, dx, dy, per_point_theta, ", ee_x, ee_y, dx, dy, per_point_theta)
+                    # print("***PER POINT***")
+                    # print("x, y, dx, dy, per_point_theta, ", x, y, dx, dy, per_point_theta)
                     per_point_theta = np.arctan2(dx, dy)
                     per_point_thetas.append(per_point_theta)
                     # print("**************")
 
                     # start to current point
-                    print("***START TO CURRENT***")
-                    dx = ee_x - start_x
-                    dy = ee_y - start_y
+                    # print("***START TO CURRENT***")
+                    dx = x - start_x
+                    dy = y - start_y
                     start_to_cur_theta = np.arctan2(dx, dy)
-                    print("x, y, dx, dy, start_to_cur_theta, ", ee_x, ee_y, dx, dy, start_to_cur_theta)
+                    # print("x, y, dx, dy, start_to_cur_theta, ", x, y, dx, dy, start_to_cur_theta)
                     start_to_cur_theta = np.arctan2(dx, dy)
                     start_to_cur_thetas.append(start_to_cur_theta)
-                    print("**************")
+                    # print("**************")
 
-                prev_x, prev_y = ee_x, ee_y
+                prev_x, prev_y = x, y
 
             dx_total = end_x - start_x
             dy_total = end_y - start_y
             start_to_end_theta = np.arctan2(dx_total, dy_total)
-            print("start_to_end_theta, ", start_to_end_theta)
+            # print("start_to_end_theta, ", start_to_end_theta)
 
             sample[csv_dict_key_name][ep_dict_key_name] = {
                 "per_point_thetas": per_point_thetas,
                 "start_to_cur_thetas": start_to_cur_thetas,
                 "start_to_end_theta": start_to_end_theta,
             }
-            break
-        break
+        #     break
+        # break
         
 
     return sample
@@ -83,10 +103,18 @@ def main():
     base = Path(__file__).parents[3] / "data-dir" / "replay" / "blockpush"
     print("base, ", base)
     dir_with_eps_csv = Path(sys.argv[1])
+    pkl_file_name = Path(sys.argv[2])
+
+    which_metric = Path(sys.argv[3]) # if "ee" then row[3], row[4] / if "action" then row[7], row[8]
 
     dir_full_path = base / dir_with_eps_csv
 
-    sample = compute_theta_dir(dir_full_path)
+    sample = compute_theta_dir(dir_full_path, which_metric)
+
+    with open(pkl_file_name, "wb") as file:
+        pickle.dump(sample, file)
+
+    # save in pickle
 
     # first_csv = sample["csv0"]
     # for ep_key in ["ep0", "ep1", "ep2"]:

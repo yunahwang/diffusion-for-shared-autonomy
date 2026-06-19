@@ -26,6 +26,9 @@ from pathlib import Path
 import os
 import time
 
+from statsmodels.distributions.empirical_distribution import ECDF
+import pickle
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -163,6 +166,21 @@ if __name__ == '__main__':
     )
 
     actor = JoystickDiffDaggerActor(env)
+
+    # get per-point pickle value for action ID
+    pkl_path = Path(__file__).parents[2] / "diffusha" / "data_collection" / "action_angles" / "action_target_2023_angle.pkl"
+    with open(pkl_path, "rb") as file:
+        loaded_dict = pickle.load(file)
+
+    all_per_point_angles = [] # this is across all episodes and csvs
+    for csv_dict_key_name, ep_dict in loaded_dict.items():
+        for ep_dict_key_name, sample in ep_dict.items():
+            per_point_thetas = sample["per_point_thetas"]
+            all_per_point_angles.extend(per_point_thetas)
+
+    ecdf_action_angles = ECDF(all_per_point_angles)
+    print("ecdf instance created, ", ecdf_action_angles)
+
 
     if no_assist:
         for _ in range(10000):
@@ -379,6 +397,22 @@ if __name__ == '__main__':
                 print("action_loss, ", action_loss)
                 loss_log_action.append(action_loss)
                 action_losses.append(action_loss)
+
+                # NOTE - new June 19th
+                """
+                get angles of raw_actions
+                """
+
+                if len(raw_input_action_x) >= 2:
+                    start_x, start_y = raw_input_action_x[0], raw_input_action_y[1]
+                    prev_x, prev_y = raw_input_action_x[-2], raw_input_action_y[-2]
+                    
+                    # implementing per point to see if it's obvious at any given timepoint if it's ID vs OOD
+                    dx = raw_input_action_x - prev_x
+                    dy = raw_input_action_y - prev_y
+
+                    theta = np.arctan2(dx, dy)
+                    
 
                 """
                 GET QUANTILE VALUES from each state and action loss

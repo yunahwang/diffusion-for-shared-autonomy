@@ -23,6 +23,7 @@ DiffDAgger/*
 DiffDAgger/
 .csv#
 diffusha/data_collection/*.csv
+diffusha/data_collection/**/*.pkl
 diffusha/data_collection/noise_estimation_log.csv
 
 2023_100_ckpt/*.2023_100_ckpt
