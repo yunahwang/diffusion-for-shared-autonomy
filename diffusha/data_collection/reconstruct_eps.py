@@ -51,7 +51,7 @@ import torch
 # But the obs target cols (5,6) already encode the goal in the same coord frame
 # as block_xy, so we read the target directly from the obs. See notes below.
 
-EE_RESET_X = 0.00066170545   # home EE x on episode start
+EE_RESET_X = -0.00066170545   # home EE x on episode start #NOTE: make sure this value is negative when doing the opposite
 EE_RESET_Y = -0.7480884      # home EE y on episode start
 EE_RESET_TOL = 1e-5           # tolerance for float comparison
 
