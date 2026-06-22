@@ -141,6 +141,40 @@ def build_cdfs():
 
     return CDF(state_ref_losses), CDF(action_ref_losses)
 
+def get_all_values():
+    state_csv_path = Path(__file__).parents[1] / "data_collection" / "state_losses_output_5_sampling.csv"
+    action_csv_path   = Path(__file__).parents[1] / "data_collection" / "flipped(ood)_vs_2023_100_1824.csv"
+    action_theta_pkl_path = Path(__file__).parents[1] / "data_collection" / "action_angles" / "action_target_2023_angle.pkl"
+
+    with open(action_theta_pkl_path, "rb") as f:
+        theta_data = pickle.load(f)
+
+    action_theta = []
+    for csv_dict in theta_data.values():
+        for ep_dict in csv_dict.values():
+            action_theta.extend(ep_dict["start_to_cur_thetas"])
+    action_theta = np.array(action_theta)
+
+    state_ref_losses  = pd.read_csv(state_csv_path).mean(axis=1).values
+    action_ref_losses = pd.read_csv(action_csv_path).mean(axis=1).values
+
+    return state_ref_losses, action_ref_losses, action_theta
+
+def get_mult_bounds():
+    state_ref_losses, action_ref_losses, action_theta = get_all_values()
+
+    state_percentiles  = CDF(state_ref_losses)
+    action_percentiles = CDF(action_ref_losses)
+    ecdf_angles        = CDF(action_theta)
+
+    # can't multiply directly — different lengths
+    # instead get the min/max of each percentile range and multiply those
+    mult_lo = state_percentiles.min * (ecdf_angles.min * action_percentiles.min)
+    mult_hi = state_percentiles.max * (ecdf_angles.max * action_percentiles.max)
+
+    return mult_lo, mult_hi
+
+
 if __name__ == '__main__':
     from diffusha.data_collection.env import make_env
 
@@ -188,6 +222,8 @@ if __name__ == '__main__':
     ecdf_action_angles = ECDF(all_start_current_angles)
     print("ecdf instance created, ", ecdf_action_angles)
 
+    mult_lo, mult_hi = get_mult_bounds()
+    print("mult_lo, mult_hi, ", mult_lo, mult_hi)
 
     if no_assist:
         for _ in range(10000):
@@ -215,8 +251,8 @@ if __name__ == '__main__':
         model_dir = Path(__file__).parents[2] / "2023_100_ckpt"
 
         # NOTE: change here 
-        raw_to_which_side = "right_ood" # because left is baseline
-        trial_num = "0622_mon_theta_analysis"
+        raw_to_which_side = "in_dist_left" # because left is baseline
+        trial_num = "0622_mon_theta_anal_16_pat_on_increase"
 
         subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
 
@@ -273,9 +309,10 @@ if __name__ == '__main__':
         # episode, which_side, total step, reward, loss, diff, raw, expert, gamma 
 
         eps = []; steps_accum = []; rewards = []; diffs = []; gammas = []; state_losses = []; action_losses = []
-        raw_input_action_x = []; raw_input_action_y = []
+        # raw_input_action_x = []; raw_input_action_y = []
         assisted_action_x = []; assisted_action_y = []
         which_side = []
+        raw_x_log = []; raw_y_log = []
 
         obs_block_x = []; obs_block_y = []; obs_block_ori = []
         obs_ee_x = []; obs_ee_y = []
@@ -287,7 +324,7 @@ if __name__ == '__main__':
         ax_loss_r = None
         episode_losses=[]
 
-        current_fwd_diff_ratio = 1.0
+        current_fwd_diff_ratio = 0.0 #NOTE: can tune
         state_cdf, action_cdf = build_cdfs()
 
         # NOTE - new
@@ -297,6 +334,10 @@ if __name__ == '__main__':
         # load human demonstrator
         for ep in range(1, 4):
             # NOTE: change this number
+
+            raw_input_action_x = []; raw_input_action_y = []
+
+            recov_pat= 0
 
             if draw_trajs:
                 #gif_name = time.strftime(time_rn)+".gif" # just change to mp4 later through online converter
@@ -342,27 +383,13 @@ if __name__ == '__main__':
                 raw_action = actor.act(ob)
                 print("[before] raw action, ", raw_action, flush=True)
 
-                ob_action_log.append(np.concatenate([ob[:7], raw_action]))
-
-                # use last step's ratio for this step's action
-                assisted_actor.fwd_diff_ratio = current_fwd_diff_ratio
-                assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
-                #print("assisted_action, ", assisted_action, flush=True)
-
-                # 6th column: diffs
-                diffs.append(diff)
-
-                raw_log.append((ee_xy, raw_action.copy())) 
-                
                 # 7th column: raw action - take [1]
                 raw_input_action_x.append(raw_action.copy()[0])
                 raw_input_action_y.append(raw_action.copy()[1])
+                raw_x_log.append(raw_action.copy()[0])
+                raw_y_log.append(raw_action.copy()[1])
 
-                assisted_log.append((ee_xy, assisted_action.copy())) 
-                
-                # 8th column: assisted action - take [1]
-                assisted_action_x.append(assisted_action.copy()[0])
-                assisted_action_y.append(assisted_action.copy()[1])
+                ob_action_log.append(np.concatenate([ob[:7], raw_action]))
 
                 obs_block_x.append(ob[0])
                 obs_block_y.append(ob[1])
@@ -440,37 +467,118 @@ if __name__ == '__main__':
                     print(f"state_loss:  {state_loss:.4f}  → CDF percentile: {state_percentile:.3f}")
                     print(f"action_loss: {action_loss:.4f}  → CDF percentile: {action_percentile:.3f}")
 
-                # """
-                # Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
-                # """
-                # percentile_mult = state_percentile * action_percentile
+                    # """
+                    # Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
+                    # """
+                    # percentile_mult = state_percentile * action_percentile
 
-                # # NOTE. ver1 - vanilla. without any patience term so instant reaction. still doesn't accept ood-direction behavior very well
-                # #current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
-                # #print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
+                    # # NOTE. ver1 - vanilla. without any patience term so instant reaction. still doesn't accept ood-direction behavior very well
+                    # #current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
+                    # #print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
 
-                # # NOTE. ver2 - both losses over some threshold, patience of two steps in a row, ratio either 0.0 or 1.0
-                # PATIENCE_THRESHOLD = 2
-                # STATE_THRESH = 0.7
-                # ACTION_THRESH = 0.7
+                    # # NOTE. ver2 - both losses over some threshold, patience of two steps in a row, ratio either 0.0 or 1.0
+                    # PATIENCE_THRESHOLD = 2
+                    # STATE_THRESH = 0.7
+                    # ACTION_THRESH = 0.7
 
-                # both_ood = (state_percentile >= STATE_THRESH) and (action_percentile >= ACTION_THRESH)
+                    # both_ood = (state_percentile >= STATE_THRESH) and (action_percentile >= ACTION_THRESH)
 
-                # if both_ood:
-                #     patience_count += 1
-                #     if patience_count >= PATIENCE_THRESHOLD:
-                #         current_fwd_diff_ratio = 0.0
-                # else:
-                #     patience_count = 0  # reset if either drops back below threshold
-                #     current_fwd_diff_ratio = 1.0
+                    # if both_ood:
+                    #     patience_count += 1
+                    #     if patience_count >= PATIENCE_THRESHOLD:
+                    #         current_fwd_diff_ratio = 0.0
+                    # else:
+                    #     patience_count = 0  # reset if either drops back below threshold
+                    #     current_fwd_diff_ratio = 1.0
 
-                # print(f"patience: {patience_count}, fwd_diff_ratio: {current_fwd_diff_ratio:.2f}")
+                    # print(f"patience: {patience_count}, fwd_diff_ratio: {current_fwd_diff_ratio:.2f}")
 
-                # ver3 - state_ood * (angle_ecdf * action_ood)
+                    # # NOTE. ver3 - state_ood * (angle_ecdf * action_ood)
                     mult = state_percentile * (ecdf_angle * action_percentile)
-                    current_fwd_diff_ratio = float(np.clip(1.0 - mult, 0.0, 1.0))
-                    print(f"action adjusted: {ecdf_angle * action_percentile:.3f}, mult: {mult:.3f} → next gamma: {current_fwd_diff_ratio:.3f}")
-                    print("*************")
+                    # current_fwd_diff_ratio = float(np.clip(1.0 - mult, 0.0, 1.0))
+                    # print(f"action adjusted: {ecdf_angle * action_percentile:.3f}, mult: {mult:.3f} → next gamma: {current_fwd_diff_ratio:.3f}")
+                    # print("*************")
+
+                    # NOTE. ver 4 - same as ver3 above + exponential moving average but fast dropping so that more responsive to OOD situation
+                    gamma_prev = current_fwd_diff_ratio
+                    # # gamma_raw = float(np.clip(1.0 - mult, 0.0, 0.8))
+                    # POWER = 0.5
+                    # mult_stretched = mult ** POWER
+                    # gamma_raw = float(np.clip(1.0 - mult_stretched, 0.0, 1.0))
+                    # if gamma_raw < gamma_prev: 
+                    #     # signifying entering OOD state
+                    #     ALPHA = 1.0
+                    # else:
+                    #     ALPHA = 0.1
+                    # gamma_smooth = ALPHA * gamma_raw + (1 - ALPHA) * gamma_prev
+                    # current_fwd_diff_ratio = gamma_smooth
+                    # print(f"mult raw: {mult:.3f} → mult power: {mult_stretched:.3f} → next gamma: {current_fwd_diff_ratio:.3f}")
+                    # print("*************")
+
+                    # NOTE. NO ver 5 - similar to ver 4 but scale mult before passing on to computing value
+                    # mult = state_percentile * (ecdf_angle * action_percentile)
+
+                    # mult_scaled = (mult - mult_lo) / (mult_hi - mult_lo)
+                    # mult_scaled = float(np.clip(mult_scaled, 0.0, 1.0))
+
+                    # gamma_prev = current_fwd_diff_ratio
+                    # gamma_raw = 1.0 - mult_scaled
+
+                    # if gamma_raw < gamma_prev:
+                    #     ALPHA = 1.0
+                    # else:
+                    #     ALPHA = 0.1
+
+                    # gamma_smooth = ALPHA * gamma_raw + (1 - ALPHA) * gamma_prev
+                    # current_fwd_diff_ratio = gamma_smooth
+                    # print(f"mult: {mult:.3f}, scaled: {mult_scaled:.3f}, raw: {gamma_raw:.3f} → next gamma: {current_fwd_diff_ratio:.3f}")
+                    # print("*************")
+
+                    # NOTE. ver6 - sigmoid
+                    # sigmoid: values above center get pushed toward 1, below get pushed toward 0
+                    CENTER = 0.5  # the midpoint — above this gets amplified, below gets suppressed
+                    STEEPNESS = 12  # higher = sharper separation, try 6-12
+
+                    mult_sigmoid = 1.0 / (1.0 + np.exp(-STEEPNESS * (mult - CENTER)))
+                    gamma_raw = float(np.clip(1.0 - mult_sigmoid, 0.0, 1.0))
+
+                    if gamma_raw < gamma_prev:
+                        # dropping toward OOD — always allow instantly
+                        ALPHA = 1.0
+                        recov_pat = 0  # reset patience
+                    else:
+                        # potentially recovering toward ID
+                        if gamma_raw > 0.2:
+                            recov_pat += 1
+                        else:
+                            recov_pat = 0
+
+                        if recov_pat >= 5:
+                            ALPHA = 0.1  # allow slow recovery
+                        else:
+                            ALPHA = 0.0  # hold current gamma, don't recover yet
+
+                    gamma_smooth = ALPHA * gamma_raw + (1 - ALPHA) * gamma_prev
+                    current_fwd_diff_ratio = gamma_smooth
+                    print(f"mult: {mult:.3f}, sig: {gamma_raw:.3f}, patience: {recov_pat}, ratio: {current_fwd_diff_ratio:.3f}")
+                    print("******")
+
+                # use last step's ratio for this step's action
+                assisted_actor.fwd_diff_ratio = current_fwd_diff_ratio
+                assisted_action, diff = assisted_actor.act_without_env(ob, raw_action, report_diff=True)
+                #print("assisted_action, ", assisted_action, flush=True)
+
+                # 6th column: diffs
+                diffs.append(diff)
+
+                raw_log.append((ee_xy, raw_action.copy())) 
+                
+
+                assisted_log.append((ee_xy, assisted_action.copy())) 
+                
+                # 8th column: assisted action - take [1]
+                assisted_action_x.append(assisted_action.copy()[0])
+                assisted_action_y.append(assisted_action.copy()[1])
 
                 if draw_trajs:
                     ax.clear()
@@ -579,11 +687,16 @@ if __name__ == '__main__':
                 gammas.append(current_fwd_diff_ratio)
                 # print("which_side, ", which_side)
 
-                #time.sleep(0.1) # NOTE - don't do this for gamma 0.0s
+                if current_fwd_diff_ratio < 0.1:
+                    time.sleep(0.5) # NOTE - don't do this for gamma 0.0s
+                else: 
+                    time.sleep(0.3)
             
             #episode_losses.append(loss_log_state.copy())
 
             print("episode reward: ", reward)
+
+            current_fwd_diff_ratio = 0.0
             if done and info.get('finished', False) or (done and info['state'] in ('target', 'target2')):
                 side_val = 1 if info['state'] == 'target' else 0
                 #which_side = [side_val] * len(steps_accum)  # backfill all steps
@@ -601,8 +714,8 @@ if __name__ == '__main__':
                     "reward": rewards,
                     # "loss": losses, 
                     "diff": diffs,
-                    "raw_input_action_x": raw_input_action_x,
-                    "raw_input_action_y": raw_input_action_y,
+                    "raw_input_action_x": raw_x_log,
+                    "raw_input_action_y": raw_y_log,
                     "assisted_action_x": assisted_action_x,
                     "assisted_action_y": assisted_action_y,
                     "gamma": gammas,
@@ -616,17 +729,17 @@ if __name__ == '__main__':
                 # actual data
                 csv_name = "episode_" + str(ep) + ".csv"
                 actual_data_full_path = data_subdir_path / csv_name
-                data_df = pd.DataFrame({
-                    "block_x": obs_block_x,
-                    "block_y": obs_block_y,
-                    "block_ori": obs_block_ori,
-                    "ee_x": obs_ee_x,
-                    "ee_y": obs_ee_y,
-                    "ee_tgt_x": obs_ee_target_x,
-                    "ee_tgt_y": obs_ee_target_y,
-                    "raw_action_x": raw_input_action_x,
-                    "raw_action_y": raw_input_action_y
-                })
+                # data_df = pd.DataFrame({
+                #     "block_x": obs_block_x,
+                #     "block_y": obs_block_y,
+                #     "block_ori": obs_block_ori,
+                #     "ee_x": obs_ee_x,
+                #     "ee_y": obs_ee_y,
+                #     "ee_tgt_x": obs_ee_target_x,
+                #     "ee_tgt_y": obs_ee_target_y,
+                #     "raw_action_x": raw_input_action_x,
+                #     "raw_action_y": raw_input_action_y
+                # })
                 # data_df.to_csv(actual_data_full_path, index = False)
 
             if save_trajs:
