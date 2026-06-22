@@ -148,9 +148,9 @@ if __name__ == '__main__':
 
     # NOTE - change the following lines
     # TODO - may make it into an argument
-    draw_trajs = True
+    draw_trajs = False
     save_trajs = False
-    save_csvs = False
+    save_csvs = True
 
     shape = "linear" # other option: "sigmoid"
     shape_save = True
@@ -178,7 +178,14 @@ if __name__ == '__main__':
             per_point_thetas = sample["per_point_thetas"]
             all_per_point_angles.extend(per_point_thetas)
 
-    ecdf_action_angles = ECDF(all_per_point_angles)
+    all_start_current_angles = [] # also across all episodes and csvs
+    for csv_dict_key_name, ep_dict in loaded_dict.items():
+        for ep_dict_key_name, sample in ep_dict.items():
+            start_current_thetas = sample["start_to_cur_thetas"]
+            all_start_current_angles.extend(start_current_thetas)
+
+    #ecdf_action_angles = ECDF(all_per_point_angles)
+    ecdf_action_angles = ECDF(all_start_current_angles)
     print("ecdf instance created, ", ecdf_action_angles)
 
 
@@ -209,7 +216,7 @@ if __name__ == '__main__':
 
         # NOTE: change here 
         raw_to_which_side = "right_ood" # because left is baseline
-        trial_num = "0528_thur_state_ood"
+        trial_num = "0622_mon_theta_analysis"
 
         subdir_path = model_dir / str(fwd_diff_ratio) / raw_to_which_side / ("trial_" + str(trial_num))
 
@@ -283,8 +290,12 @@ if __name__ == '__main__':
         current_fwd_diff_ratio = 1.0
         state_cdf, action_cdf = build_cdfs()
 
+        # NOTE - new
+        ecdf_scores = []
+
+
         # load human demonstrator
-        for ep in range(1, 11):
+        for ep in range(1, 4):
             # NOTE: change this number
 
             if draw_trajs:
@@ -383,7 +394,7 @@ if __name__ == '__main__':
                 state_loss = float(np.mean(sampled_losses))
 
                 # nb_loss = noise_estimation_loss_nb_infer(diffusion, x_0_single, obs_size=7, Nb=512)
-                print("state_loss", state_loss)
+                # print("state_loss", state_loss)
                 loss_log_state.append(state_loss)
                 state_losses.append(state_loss)
 
@@ -394,7 +405,7 @@ if __name__ == '__main__':
                 raw_action_tensor = torch.tensor(raw_action, dtype = torch.float32).unsqueeze(0)
                 x_0 = torch.cat([ob_tensor, raw_action_tensor], dim = -1)
                 action_loss = noise_estimation_loss_nb_infer(diffusion, x_0, obs_size=7, Nb=512)
-                print("action_loss, ", action_loss)
+                # print("action_loss, ", action_loss)
                 loss_log_action.append(action_loss)
                 action_losses.append(action_loss)
 
@@ -403,55 +414,63 @@ if __name__ == '__main__':
                 get angles of raw_actions
                 """
 
-                if len(raw_input_action_x) >= 2:
-                    start_x, start_y = raw_input_action_x[0], raw_input_action_y[1]
-                    prev_x, prev_y = raw_input_action_x[-2], raw_input_action_y[-2]
+                if len(raw_input_action_x) >= 0: # could be 2
+                    start_x, start_y = raw_input_action_x[0], raw_input_action_y[0]
+                    #prev_x, prev_y = raw_input_action_x[-2], raw_input_action_y[-2]
                     
                     # implementing per point to see if it's obvious at any given timepoint if it's ID vs OOD
-                    dx = raw_input_action_x - prev_x
-                    dy = raw_input_action_y - prev_y
+                    # dx = raw_action[0] - prev_x
+                    # dy = raw_action[1] - prev_y
 
-                    theta = np.arctan2(dx, dy)
-                    
+                    # implementing the start to current angle logic
+                    dx = raw_action[0] - start_x
+                    dy = raw_action[1] - start_y
 
-                """
-                GET QUANTILE VALUES from each state and action loss
-                """
-                state_percentile  = float(state_cdf(state_loss))
-                action_percentile = float(action_cdf(action_loss))
+                    theta = np.array(np.arctan2(dx, dy))
+                    ecdf_angle = ecdf_action_angles(theta)
+                    print(f"theta, {theta}, ecdf_score, {ecdf_angle}")
+                    ecdf_scores.append(ecdf_angle)
 
-                print(f"state_loss:  {state_loss:.4f}  → CDF percentile: {state_percentile:.3f}")
-                print(f"action_loss: {action_loss:.4f}  → CDF percentile: {action_percentile:.3f}")
+                    """
+                    GET QUANTILE VALUES from each state and action loss
+                    """
+                    state_percentile  = float(state_cdf(state_loss))
+                    action_percentile = float(action_cdf(action_loss))
 
-                """
-                Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
-                """
-                percentile_mult = state_percentile * action_percentile
+                    print(f"state_loss:  {state_loss:.4f}  → CDF percentile: {state_percentile:.3f}")
+                    print(f"action_loss: {action_loss:.4f}  → CDF percentile: {action_percentile:.3f}")
 
-                # NOTE. ver1 - vanilla. without any patience term so instant reaction. still doesn't accept ood-direction behavior very well
-                #current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
-                #print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
+                # """
+                # Compute correct gamma by multiplying quantile values and mapping linearly to the gamma values
+                # """
+                # percentile_mult = state_percentile * action_percentile
 
-                # ver2 - both losses over some threshold, patience of two steps in a row, ratio either 0.0 or 1.0
-                PATIENCE_THRESHOLD = 2
-                STATE_THRESH = 0.7
-                ACTION_THRESH = 0.7
+                # # NOTE. ver1 - vanilla. without any patience term so instant reaction. still doesn't accept ood-direction behavior very well
+                # #current_fwd_diff_ratio = float(np.clip(1.0 - percentile_mult, 0.0, 1.0))
+                # #print(f"percentile_mult: {percentile_mult:.3f} → next fwd_diff_ratio: {current_fwd_diff_ratio:.3f}")
 
-                both_ood = (state_percentile >= STATE_THRESH) and (action_percentile >= ACTION_THRESH)
+                # # NOTE. ver2 - both losses over some threshold, patience of two steps in a row, ratio either 0.0 or 1.0
+                # PATIENCE_THRESHOLD = 2
+                # STATE_THRESH = 0.7
+                # ACTION_THRESH = 0.7
 
-                if both_ood:
-                    patience_count += 1
-                    if patience_count >= PATIENCE_THRESHOLD:
-                        current_fwd_diff_ratio = 0.0
-                else:
-                    patience_count = 0  # reset if either drops back below threshold
-                    current_fwd_diff_ratio = 1.0
+                # both_ood = (state_percentile >= STATE_THRESH) and (action_percentile >= ACTION_THRESH)
 
-                print(f"patience: {patience_count}, fwd_diff_ratio: {current_fwd_diff_ratio:.2f}")
+                # if both_ood:
+                #     patience_count += 1
+                #     if patience_count >= PATIENCE_THRESHOLD:
+                #         current_fwd_diff_ratio = 0.0
+                # else:
+                #     patience_count = 0  # reset if either drops back below threshold
+                #     current_fwd_diff_ratio = 1.0
 
-                # TODO - ver3 - have in-between values and not just 0.0 and 1.0
+                # print(f"patience: {patience_count}, fwd_diff_ratio: {current_fwd_diff_ratio:.2f}")
 
-
+                # ver3 - state_ood * (angle_ecdf * action_ood)
+                    mult = state_percentile * (ecdf_angle * action_percentile)
+                    current_fwd_diff_ratio = float(np.clip(1.0 - mult, 0.0, 1.0))
+                    print(f"action adjusted: {ecdf_angle * action_percentile:.3f}, mult: {mult:.3f} → next gamma: {current_fwd_diff_ratio:.3f}")
+                    print("*************")
 
                 if draw_trajs:
                     ax.clear()
@@ -587,6 +606,9 @@ if __name__ == '__main__':
                     "assisted_action_x": assisted_action_x,
                     "assisted_action_y": assisted_action_y,
                     "gamma": gammas,
+                    "state_losses": state_losses, 
+                    "action_losses": action_losses, 
+                    "ecdf_score": ecdf_scores
 
                 })
                 df.to_csv(csv_full_path, index = False)
@@ -605,7 +627,7 @@ if __name__ == '__main__':
                     "raw_action_x": raw_input_action_x,
                     "raw_action_y": raw_input_action_y
                 })
-                data_df.to_csv(actual_data_full_path, index = False)
+                # data_df.to_csv(actual_data_full_path, index = False)
 
             if save_trajs:
                 # NOTE

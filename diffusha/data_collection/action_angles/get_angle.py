@@ -47,8 +47,8 @@ def compute_theta_dir(dir_full_path, which_metric):
             ep_dict_key_name = "ep" + str(i)
             ep_df = ep_df.reset_index(drop=True)
 
-            start_x, start_y = ep_df.iloc[0, 3], ep_df.iloc[0, 4]
-            end_x, end_y = ep_df.iloc[-1, 3], ep_df.iloc[-1, 4]
+            start_x, start_y = ep_df.iloc[0, first_val_idx], ep_df.iloc[0, second_val_idx]
+            end_x, end_y = ep_df.iloc[-1, first_val_idx], ep_df.iloc[-1, second_val_idx]
 
             per_point_thetas = []
             start_to_cur_thetas = []
@@ -76,7 +76,6 @@ def compute_theta_dir(dir_full_path, which_metric):
                     dy = y - start_y
                     start_to_cur_theta = np.arctan2(dx, dy)
                     # print("x, y, dx, dy, start_to_cur_theta, ", x, y, dx, dy, start_to_cur_theta)
-                    start_to_cur_theta = np.arctan2(dx, dy)
                     start_to_cur_thetas.append(start_to_cur_theta)
                     # print("**************")
 

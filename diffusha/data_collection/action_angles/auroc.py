@@ -11,9 +11,9 @@ def get_info(labels, scores):
     
     return tpr, fpr, auroc
 
-def plot_auroc(tpr, fpr):
+def plot_auroc(tpr, fpr, score):
     plt.figure()
-    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {score:.2f})')
     plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--') # Random guess line
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
@@ -21,7 +21,7 @@ def plot_auroc(tpr, fpr):
     plt.ylabel('True Positive Rate')
     plt.title('ROC')
     plt.legend(loc="lower right")
-    plt.show()
+    plt.savefig('roc_act_theta_id_vs_ood.png', dpi=150)
 
 def read_csvs(id_path, ood_path):
     id_df = pd.read_csv(id_path)
@@ -38,12 +38,12 @@ def read_csvs(id_path, ood_path):
 
 def main():
     # read csv name as argv
-    base = Path(__file__).parents[1]
-    id_csv = Path(sys.argv[1])
-    ood_csv = Path(sys.argv[2])
+    # base = Path(__file__).parents[1]
+    id_full_path = Path(sys.argv[1])
+    ood_full_path = Path(sys.argv[2])
 
-    id_full_path = base / id_csv
-    ood_full_path = base / ood_csv
+    # id_full_path = base / id_csv
+    # ood_full_path = base / ood_csv
 
     # csv structure looks like
     # labels, scores (first, second col)
@@ -51,7 +51,7 @@ def main():
 
     tpr, fpr, score = get_info(labels, scores)
 
-    plot_auroc(tpr, fpr)
+    plot_auroc(tpr, fpr, score)
 
 
 
